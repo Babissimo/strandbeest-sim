@@ -1,0 +1,444 @@
+<title>Strandbeest Simulator Scoping</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: one reading column on drafting paper; wide figures scroll inside their own frames. */
+:root {
+  --paper: #f4f6f3;
+  --panel: #ffffff;
+  --ink: #1c2422;
+  --muted: #5a6662;
+  --rule: #d6dcd7;
+  --accent: #1e5d87;
+  --birch: #d4b27a;
+  --jam: #b0412d;
+  --should: #8c6414;
+  --wash: #e8eef0;
+  --display: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #131817; --panel: #1a201e; --ink: #e4eae7; --muted: #9ba7a2; --rule: #2d3532;
+    --accent: #79b0dc; --birch: #c39d62; --jam: #e47f69; --should: #d9a94c; --wash: #1d2a31;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #131817; --panel: #1a201e; --ink: #e4eae7; --muted: #9ba7a2; --rule: #2d3532;
+  --accent: #79b0dc; --birch: #c39d62; --jam: #e47f69; --should: #d9a94c; --wash: #1d2a31;
+  color-scheme: dark;
+}
+body {
+  background: var(--paper); color: var(--ink);
+  font: 15px/1.6 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 46rem; margin: 0 auto; padding-block: 2.5rem 4rem; display: grid; gap: 2.75rem; }
+section { display: grid; gap: 1rem; min-width: 0; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: 2.4rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.55rem; padding-top: 0.75rem; border-top: 2px solid var(--ink); display: flex; gap: 0.6rem; align-items: baseline; }
+h2 .sec { font-family: var(--mono); font-size: 0.85rem; font-weight: 500; color: var(--muted); }
+h3 { font-size: 1.15rem; font-weight: 500; }
+p, ul, ol { margin: 0; max-width: 65ch; }
+ul, ol { padding-left: 1.2rem; display: grid; gap: 0.35rem; }
+a { color: var(--accent); }
+code, .num { font-family: var(--mono); font-size: 0.88em; }
+.num { font-variant-numeric: tabular-nums; }
+.lede { color: var(--muted); display: grid; gap: 0.35rem; }
+.lede p { max-width: none; }
+.status { font-family: var(--mono); font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.note { color: var(--muted); font-size: 0.9rem; }
+
+.frame { overflow-x: auto; border: 1px solid var(--rule); background: var(--panel); border-radius: 3px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.r, th.r { text-align: right; }
+.ok { color: var(--accent); }
+
+.findings { display: grid; gap: 1.25rem; }
+.finding { display: grid; gap: 0.5rem; }
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
+figure { margin: 0; display: grid; gap: 0.4rem; min-width: 0; }
+figure svg { width: 100%; height: auto; display: block; background: var(--panel); border: 1px solid var(--rule); border-radius: 3px; }
+figcaption { font-size: 0.85rem; color: var(--muted); }
+.stick { stroke: var(--birch); stroke-width: 3.2; stroke-linecap: round; fill: none; }
+.stick.hot { stroke: var(--jam); }
+.frameline { stroke: var(--muted); stroke-width: 0.8; stroke-dasharray: 2 1.5; fill: none; }
+.hole { fill: var(--paper); stroke: var(--ink); stroke-width: 0.45; }
+.path { stroke: var(--accent); stroke-width: 0.9; fill: none; }
+.jump { stroke: var(--jam); stroke-width: 0.8; stroke-dasharray: 2.5 1.5; fill: none; }
+.lbl { fill: var(--muted); font: 500 5.2px var(--mono); }
+.chart text { fill: var(--muted); font: 11px var(--body); }
+.chart .val { fill: var(--ink); font-family: var(--mono); font-size: 11px; }
+.chart .grid { stroke: var(--rule); stroke-width: 1; }
+.chart .bar { fill: var(--accent); }
+.chart .bar.est { fill: var(--accent); opacity: 0.35; }
+
+/* stack diagram */
+.stack { display: grid; gap: 0.5rem; }
+.layer { display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.75rem; align-items: start; }
+.layer > .tag { font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding-top: 0.45rem; }
+.boxes { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.box { border: 1px solid var(--ink); background: var(--panel); padding: 0.3rem 0.55rem; font-size: 0.85rem; border-radius: 2px; }
+.box b { font-family: var(--mono); font-weight: 500; font-size: 0.75rem; color: var(--muted); margin-right: 0.3rem; }
+.box.stretch { border-style: dashed; color: var(--muted); }
+@media (max-width: 34rem) { .layer { grid-template-columns: 1fr; gap: 0.25rem; } .layer > .tag { padding-top: 0; } }
+
+.pill { display: inline-block; font-family: var(--mono); font-size: 0.72rem; padding: 0.05rem 0.4rem; border-radius: 2px; white-space: nowrap; border: 1px solid currentColor; }
+.p-tue { color: var(--accent); }
+.p-wed { color: var(--accent); background: var(--wash); }
+.p-should { color: var(--should); }
+.p-stretch { color: var(--muted); border-style: dashed; }
+
+/* timeline */
+.tl { display: grid; grid-template-columns: 11rem repeat(7, minmax(4.6rem, 1fr)); min-width: 44rem; font-size: 0.8rem; }
+.tl > div { padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--rule); min-height: 1.9rem; }
+.tl .hd { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--ink); }
+.tl .hd.teach { color: var(--ink); }
+.tl .rl { font-weight: 500; }
+.tl .rl small { font-family: var(--mono); color: var(--muted); font-weight: 400; margin-right: 0.3rem; }
+.tl .on { background: var(--accent); color: var(--panel); font-family: var(--mono); font-size: 0.7rem; border-bottom-color: var(--paper); }
+.tl .al { background: var(--should); color: var(--panel); font-family: var(--mono); font-size: 0.7rem; border-bottom-color: var(--paper); }
+.tl .opt { background: repeating-linear-gradient(135deg, transparent 0 5px, var(--rule) 5px 7px); color: var(--muted); font-size: 0.7rem; font-family: var(--mono); }
+.tl .off { background: repeating-linear-gradient(45deg, transparent 0 6px, var(--rule) 6px 7px); }
+.tl .class { background: var(--wash); font-size: 0.72rem; }
+.tl .class b { font-family: var(--mono); font-weight: 500; }
+
+.qgroup { display: grid; gap: 0.9rem; }
+.qgroup > h3 { color: var(--muted); font-family: var(--mono); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.q { display: grid; grid-template-columns: 3rem 1fr; gap: 0.25rem 0.5rem; }
+.q > .qn { font-family: var(--mono); font-weight: 500; color: var(--accent); padding-top: 0.05rem; }
+.q > div { display: grid; gap: 0.3rem; min-width: 0; }
+.q .ask { font-weight: 600; }
+.q .found, .q .opts { font-size: 0.9rem; color: var(--muted); }
+.q .found b, .q .opts b { color: var(--ink); font-weight: 500; }
+.q.done .qn, .q.done .ask { color: var(--muted); }
+</style>
+
+<main>
+<header class="lede">
+  <span class="status">Scoping draft · nothing built yet · 22 Oct 2026</span>
+  <h1>Strandbeest Simulator Scoping</h1>
+  <p>A browser simulator for <i>Evolving Machines</i> (three pairs of Year 11/12 students, Tue 27 to Thu 29 Oct), built on Fri 23, Sat 24 and Mon 26 Oct. This page records what I checked, the pieces, an order against those dates, the risks, and the decisions that are yours to make (§5).</p>
+</header>
+
+<section id="found">
+  <h2><span class="sec">§1</span>What I checked</h2>
+  <div class="findings">
+
+    <div class="finding">
+      <h3>Hosting</h3>
+      <p>babissimo.net is a Quarto site on GitHub Pages. Each project lives in its own repo on its own subdomain (DNS at Cloudflare) with a card in <code>projects/projects.yml</code>. There are two deploy patterns: Ratchet's page is a Cloudflare Worker serving a <code>public/</code> folder (wrangler, custom domain, a <code>CLOUDFLARE_API_TOKEN</code> secret), while Torus Chess and World Happiness are GitHub Pages sites with a <code>CNAME</code>. The difference that matters here is that Cloudflare can set response headers and GitHub Pages cannot (Q9, Q12).</p>
+    </div>
+
+    <div class="finding">
+      <h3>Runtime</h3>
+      <p>PyScript 0.7.31 (July 2026) loads Pyodide 314.0.2, which runs Python 3.14.2. Pyodide does not bundle pymunk, but pymunk 7.3.1 publishes WebAssembly wheels on PyPI and PyScript installed one from there. In the browser on your Mac, Python, numpy and pymunk were ready 4.4 s after page start, after a download of about 9 MB. PyScript also ships a CodeMirror editor (<code>py-editor</code>) with Python highlighting. Every host involved (jsDelivr, pypi.org, files.pythonhosted.org) allows cross-origin loading, so the page can be cross-origin isolated if the host sets the headers.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Your geometry reproduces</h3>
+      <p>Implemented from the handover's definitions alone, the model gives your numbers:</p>
+      <div class="frame"><table>
+        <thead><tr><th>Case</th><th class="r">Yours</th><th class="r">Reproduced</th></tr></thead>
+        <tbody>
+          <tr><td>Step height</td><td class="r num">22.5</td><td class="r num">22.46</td></tr>
+          <tr><td>Time down at 0.5 / 1 / 2 / 4</td><td class="r num">.37 / .43 / .52 / .65</td><td class="r num">.37 / .43 / .52 / .65</td></tr>
+          <tr><td>Stride at 0.5 / 1 / 2 / 4</td><td class="r num">50.2 / 57.4 / 64.9 / 67.9</td><td class="r num">50.3 / 57.5 / 65.0 / 67.9</td></tr>
+          <tr><td>Body bob, 1 / 2 / 3 pairs</td><td class="r num">2.19 / 1.44 / 0.08</td><td class="r num">2.19 / 1.44 / 0.08</td></tr>
+          <tr><td>Distance per turn, 1 / 2 / 3 pairs</td><td class="r num">125.9 / 135.3 / 141.1</td><td class="r num">125.9 / 135.3 / 141.1</td></tr>
+          <tr><td>Child jams, ±10%: swap / blend</td><td class="r num">25% / 12%</td><td class="r num">28% / 10%</td></tr>
+          <tr><td>Child jams, ±25%: swap / blend</td><td class="r num">35% / 13%</td><td class="r num">35% / 19%</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">The 0.1 differences in stride come from angle sampling. The crossover rates depend on how parents are drawn (I used uniform ±spread per length, rejecting jammed parents), so they agree in pattern rather than in exact percentages. I did not rerun the four-bar survey.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Two traps in the jam rule</h3>
+      <div class="figs">
+        <figure>
+          <svg viewBox="-116 -42 132 142" role="img" aria-label="Jansen leg at crank angle 192 degrees with its foot path; links k and c nearly fold flat.">
+          <polygon class="path" points="-43.2,91.8 -42.4,91.8 -41.6,91.8 -40.8,91.8 -40.0,91.8 -39.2,91.8 -38.3,91.8 -37.5,91.8 -36.7,91.8 -35.9,91.8 -35.0,91.8 -34.2,91.8 -33.4,91.8 -32.5,91.8 -31.7,91.8 -30.8,91.8 -30.0,91.8 -29.1,91.8 -28.2,91.8 -27.4,91.8 -26.5,91.8 -25.7,91.8 -24.8,91.8 -24.0,91.8 -23.1,91.8 -22.3,91.7 -21.4,91.7 -20.6,91.7 -19.8,91.7 -19.0,91.6 -18.2,91.6 -17.3,91.5 -16.6,91.5 -15.8,91.4 -15.0,91.4 -14.2,91.3 -13.5,91.2 -12.8,91.1 -12.1,91.1 -11.4,91.0 -10.7,90.9 -10.1,90.8 -9.4,90.7 -8.8,90.6 -8.2,90.5 -7.7,90.4 -7.2,90.3 -6.7,90.2 -6.2,90.1 -5.8,89.9 -5.4,89.8 -5.0,89.7 -4.7,89.6 -4.4,89.4 -4.1,89.3 -3.9,89.2 -3.8,89.1 -3.7,88.9 -3.6,88.8 -3.6,88.7 -3.7,88.5 -3.8,88.4 -3.9,88.2 -4.2,88.1 -4.5,87.9 -4.8,87.8 -5.2,87.6 -5.7,87.4 -6.3,87.2 -7.0,87.0 -7.7,86.8 -8.5,86.6 -9.3,86.3 -10.3,86.0 -11.3,85.7 -12.4,85.4 -13.6,85.0 -14.8,84.5 -16.1,84.0 -17.5,83.5 -18.9,82.9 -20.4,82.2 -21.9,81.5 -23.4,80.7 -25.0,79.8 -26.5,78.9 -28.0,77.9 -29.5,76.8 -31.0,75.8 -32.4,74.6 -33.7,73.5 -35.0,72.4 -36.3,71.5 -37.5,70.6 -38.7,69.9 -40.0,69.5 -41.3,69.4 -42.7,69.5 -44.2,69.9 -45.8,70.4 -47.4,71.2 -49.1,72.0 -50.7,72.9 -52.3,73.8 -53.9,74.8 -55.4,75.7 -56.9,76.6 -58.2,77.4 -59.6,78.2 -60.8,79.0 -62.0,79.8 -63.1,80.5 -64.1,81.2 -65.0,81.8 -65.9,82.4 -66.7,83.0 -67.4,83.5 -68.1,84.0 -68.7,84.5 -69.3,84.9 -69.7,85.4 -70.2,85.8 -70.5,86.2 -70.8,86.5 -71.1,86.9 -71.2,87.2 -71.4,87.5 -71.5,87.8 -71.5,88.1 -71.5,88.3 -71.5,88.6 -71.4,88.8 -71.3,89.0 -71.1,89.2 -70.9,89.5 -70.7,89.6 -70.4,89.8 -70.1,90.0 -69.8,90.2 -69.4,90.3 -69.1,90.5 -68.7,90.6 -68.2,90.7 -67.8,90.8 -67.3,90.9 -66.8,91.0 -66.3,91.1 -65.8,91.2 -65.3,91.3 -64.7,91.4 -64.2,91.4 -63.6,91.5 -63.0,91.6 -62.4,91.6 -61.8,91.7 -61.1,91.7 -60.5,91.7 -59.8,91.7 -59.2,91.8 -58.5,91.8 -57.8,91.8 -57.2,91.8 -56.5,91.8 -55.8,91.8 -55.1,91.8 -54.4,91.8 -53.7,91.8 -53.0,91.8 -52.2,91.8 -51.5,91.8 -50.8,91.8 -50.0,91.8 -49.3,91.8 -48.5,91.8 -47.8,91.8 -47.0,91.8 -46.3,91.8 -45.5,91.8 -44.7,91.8 -43.9,91.8"/>
+          <polyline class="frameline" points="0.0,-0.0 -38,-0.0 -38,7.8"/>
+          <line class="stick" x1="0.0" y1="-0.0" x2="-14.7" y2="3.1"/>
+          <line class="stick" x1="-14.7" y1="3.1" x2="-50.5" y2="-31.8"/>
+          <line class="stick" x1="-38" y1="7.8" x2="-50.5" y2="-31.8"/>
+          <line class="stick" x1="-38" y1="7.8" x2="-76.9" y2="17.3"/>
+          <line class="stick" x1="-50.5" y1="-31.8" x2="-76.9" y2="17.3"/>
+          <line class="stick" x1="-76.9" y1="17.3" x2="-103.0" y2="46.9"/>
+          <line class="stick" x1="-70.4" y1="30.0" x2="-103.0" y2="46.9"/>
+          <line class="stick" x1="-70.4" y1="30.0" x2="-41.3" y2="69.4"/>
+          <line class="stick" x1="-103.0" y1="46.9" x2="-41.3" y2="69.4"/>
+          <line class="stick hot" x1="-14.7" y1="3.1" x2="-70.4" y2="30.0"/>
+          <line class="stick hot" x1="-38" y1="7.8" x2="-70.4" y2="30.0"/>
+          <circle class="hole" cx="0.0" cy="-0.0" r="1.1"/>
+          <circle class="hole" cx="-14.7" cy="3.1" r="1.1"/>
+          <circle class="hole" cx="-38" cy="7.8" r="1.1"/>
+          <circle class="hole" cx="-50.5" cy="-31.8" r="1.1"/>
+          <circle class="hole" cx="-76.9" cy="17.3" r="1.1"/>
+          <circle class="hole" cx="-70.4" cy="30.0" r="1.1"/>
+          <circle class="hole" cx="-103.0" cy="46.9" r="1.1"/>
+          <circle class="hole" cx="-41.3" cy="69.4" r="1.1"/>
+          <text class="lbl" x="3.0" y="-2.5">O</text>
+          <text class="lbl" x="-12.2" y="10.1">C</text>
+          <text class="lbl" x="-41.0" y="4.3">G</text>
+          <text class="lbl" x="-47.5" y="-32.8">J2</text>
+          <text class="lbl" x="-86.9" y="14.3">J3</text>
+          <text class="lbl" x="-81.4" y="35.0">J4</text>
+          <text class="lbl" x="-112.0" y="54.9">J5</text>
+          <text class="lbl" x="-38.3" y="66.9">F</text>
+          <text class="lbl" style="fill:var(--jam)" x="-46.2" y="13.8">k</text>
+          <text class="lbl" style="fill:var(--jam)" x="-52.9" y="24.8">c</text>
+          <text class="lbl" x="-70" y="98">foot path</text>
+          </svg>
+          <figcaption>Jansen's leg at θ ≈ 192°, where <b>k</b> and <b>c</b> (red) come within 1.19 mm of folding flat. A "near-jam" margin of more than about 1 mm would reject Jansen himself.</figcaption>
+        </figure>
+        <figure>
+          <svg viewBox="-130 2 156 96" role="img" aria-label="Foot path of a random leg that passes the jam check; the foot jumps between disconnected pieces of path.">
+          <polyline class="path" points="-6.9,86.7 -6.2,86.3 -5.5,86.0 -4.7,85.7 -4.0,85.3 -3.3,84.9 -2.5,84.6 -1.8,84.2 -1.1,83.8 -0.3,83.4 0.4,83.0 1.1,82.6 1.8,82.1 2.5,81.7 3.2,81.2 3.9,80.8 4.6,80.3 5.3,79.9 5.9,79.4 6.6,78.9 7.2,78.4 7.9,77.9 8.5,77.4 9.2,76.9 9.8,76.4 10.4,75.8 11.0,75.3 11.5,74.8 12.1,74.2 12.7,73.6 13.2,73.1 13.7,72.5 14.2,71.9 14.7,71.3 15.2,70.7 15.6,70.1 16.0,69.5 16.4,68.9 16.8,68.2 17.2,67.6 17.5,66.9 17.8,66.3 18.1,65.6 18.3,64.9 18.6,64.2 18.7,63.5 18.9,62.8 19.0,62.1 19.1,61.4 19.2,60.7 19.2,59.9 19.2,59.2 19.1,58.4 19.0,57.6 18.9,56.8 18.7,56.0 18.4,55.2 18.1,54.3 17.8,53.5 17.4,52.6 17.0,51.6 16.5,50.7 15.9,49.7 15.3,48.6 14.6,47.5 13.9,46.4 13.1,45.1 12.2,43.8 11.2,42.5 10.2,41.0 9.1,39.4 7.8,37.6 6.5,35.7 5.1,33.6 3.5,31.3 1.7,28.7 -0.2,25.9 -2.4,22.7"/>
+          <polyline class="path" points="-104.5,57.8 -105.9,57.1 -107.3,56.6 -108.5,56.4 -109.4,56.7 -110.1,57.6 -110.2,59.1 -109.8,61.2 -108.5,63.9 -106.4,66.8 -103.6,69.6 -100.5,71.9 -97.3,73.4 -94.7,74.2 -92.8,74.4 -91.8,74.1 -91.9,73.5 -93.0,72.5 -95.2,71.2 -98.3,69.4 -102.3,66.9 -106.9,63.6 -111.7,59.2 -116.2,53.8 -120.1,47.7"/>
+          <polyline class="path" points="-22.6,42.0 -25.1,48.5 -27.8,54.0"/>
+          <polyline class="path" points="-20.7,8.7 -18.6,16.3 -17.5,23.4 -17.1,29.8 -17.2,35.6 -17.7,40.7 -18.5,45.3 -19.3,49.3 -20.2,53.0 -21.2,56.3 -22.1,59.2 -23.0,61.9 -23.9,64.3 -24.7,66.5 -25.5,68.6 -26.2,70.4 -26.9,72.2 -27.5,73.7 -28.0,75.2 -28.5,76.5 -29.0,77.8 -29.3,79.0 -29.6,80.0 -29.9,81.0 -30.1,82.0 -30.3,82.8 -30.4,83.6 -30.5,84.4 -30.5,85.0 -30.5,85.7 -30.4,86.3 -30.3,86.8 -30.2,87.3 -30.0,87.8 -29.8,88.2 -29.6,88.6 -29.3,88.9 -29.0,89.3 -28.7,89.6 -28.3,89.8 -27.9,90.0 -27.5,90.3 -27.1,90.4 -26.6,90.6 -26.1,90.7 -25.6,90.8 -25.1,90.9 -24.6,90.9 -24.0,91.0 -23.4,91.0 -22.9,91.0 -22.3,91.0 -21.6,90.9 -21.0,90.9 -20.4,90.8 -19.7,90.7 -19.1,90.6 -18.4,90.5 -17.7,90.3 -17.0,90.2 -16.3,90.0 -15.6,89.8 -14.9,89.6 -14.2,89.4 -13.5,89.2 -12.8,89.0 -12.1,88.7 -11.3,88.5 -10.6,88.2 -9.9,87.9 -9.1,87.6 -8.4,87.3 -7.7,87.0 -6.9,86.7"/>
+          <line class="jump" x1="-2.4" y1="22.7" x2="-104.5" y2="57.8"/>
+          <line class="jump" x1="-120.1" y1="47.7" x2="-22.6" y2="42.0"/>
+          <line class="jump" x1="-27.8" y1="54.0" x2="-123.7" y2="11.9"/>
+          <line class="jump" x1="-123.7" y1="11.9" x2="-20.7" y2="8.7"/>
+          <text class="lbl" x="-126" y="94">4 jumps per turn, the largest 108 mm</text>
+          </svg>
+          <figcaption>A random leg within ±25% of Jansen that passes the 180-angle jam check. The min-x rule switches J5 between the two circle intersections, so the foot teleports (red dashes), which a built leg cannot do.</figcaption>
+        </figure>
+      </div>
+      <p>The teleport is common. Of 300 jam-free random legs at each spread, 6% (±10%), 14% (±25%) and 20% (±50%) moved a joint more than 10 mm in one 2° crank step, against 1.9 mm for Jansen. Evolution will find and exploit these (Q14).</p>
+    </div>
+
+    <div class="finding">
+      <h3>Physics arena spike</h3>
+      <p>A throwaway pymunk model of a whole beest (each leg is two rigid triangles and four bars, pinned to a chassis and a motor-driven crank) walks in the right direction and agrees with the kinematic model for the six-legged beest:</p>
+      <div class="frame"><table>
+        <thead><tr><th>Beest</th><th class="r">Kinematic, mm/turn</th><th class="r">Arena, mm/turn</th></tr></thead>
+        <tbody>
+          <tr><td>1 pair</td><td class="r num">125.9</td><td class="r">tipped over</td></tr>
+          <tr><td>2 pairs at 180°</td><td class="r num">135.3</td><td class="r num">148.0</td></tr>
+          <tr><td>3 pairs at 120°</td><td class="r num">141.1</td><td class="r num">141.9–144.7</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">That needs about 600 physics steps per crank turn: at 240 the joints went soft and the beest fell apart. Results were identical in CPython and the browser, so arena runs are repeatable.</p>
+      <figure>
+        <svg class="chart" viewBox="0 0 600 150" role="img" aria-label="Time to score a 50 by 100 run: geometry in pure Python 14 seconds, geometry in numpy 2.6 seconds, arena about 5 to 8 minutes estimated.">
+          <line class="grid" x1="150" y1="8" x2="150" y2="120"/>
+          <line class="grid" x1="266.7" y1="8" x2="266.7" y2="120"/>
+          <line class="grid" x1="383.3" y1="8" x2="383.3" y2="120"/>
+          <line class="grid" x1="500" y1="8" x2="500" y2="120"/>
+          <text x="150" y="138" text-anchor="middle">1 s</text>
+          <text x="266.7" y="138" text-anchor="middle">10 s</text>
+          <text x="383.3" y="138" text-anchor="middle">100 s</text>
+          <text x="500" y="138" text-anchor="middle">1000 s</text>
+          <text x="140" y="31" text-anchor="end">Geometry, pure Python</text>
+          <rect class="bar" x="150" y="16" width="134.4" height="22"/>
+          <text class="val" x="290" y="31">14 s</text>
+          <text x="140" y="67" text-anchor="end">Geometry, numpy</text>
+          <rect class="bar" x="150" y="52" width="48.4" height="22"/>
+          <text class="val" x="204" y="67">2.6 s</text>
+          <text x="140" y="103" text-anchor="end">Arena, 3 turns each</text>
+          <rect class="bar est" x="150" y="88" width="286.4" height="22"/>
+          <rect class="bar" x="436.4" y="88" width="28.5" height="22"/>
+          <text class="val" x="471" y="103">≈5–8 min</text>
+        </svg>
+        <figcaption>Time to score 5,000 beests (population 50 × 100 generations) in the browser on your Mac, log scale. The geometry bars are measured. The arena bar is estimated from its measured step rate (21,000–37,000 steps/s for six legs); its solid tip spans the low and high estimates.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="components">
+  <h2><span class="sec">§2</span>Components and priorities</h2>
+  <div class="stack" aria-label="How the pieces stack">
+    <div class="layer"><span class="tag">Modes</span><div class="boxes">
+      <span class="box"><b>C4</b>Four-bar</span><span class="box"><b>C5</b>Leg playground</span><span class="box"><b>C6–10</b>Evolve</span><span class="box stretch"><b>C13–14</b>Arena and races</span>
+    </div></div>
+    <div class="layer"><span class="tag">Shared</span><div class="boxes">
+      <span class="box"><b>C3</b>Renderer, sliders, traces</span><span class="box"><b>C6</b>GA engine</span><span class="box"><b>C7</b>Fitness and normalisation</span><span class="box"><b>C8</b>Graph</span><span class="box"><b>C9</b>Code sandbox</span><span class="box"><b>C10</b>Template</span>
+    </div></div>
+    <div class="layer"><span class="tag">Core</span><div class="boxes">
+      <span class="box"><b>C2</b>Geometry: circles, jams, measures, whole beest</span><span class="box stretch"><b>C12</b>Tipping check</span><span class="box stretch"><b>C13</b>pymunk physics</span>
+    </div></div>
+    <div class="layer"><span class="tag">Platform</span><div class="boxes">
+      <span class="box"><b>C1</b>Repo, subdomain, PyScript shell, CI</span><span class="box"><b>C11</b>Self-hosted runtime</span>
+    </div></div>
+  </div>
+
+  <div class="frame"><table>
+    <thead><tr><th>ID</th><th>Piece</th><th class="r">Hours</th><th>Needed for</th><th>Turns on</th></tr></thead>
+    <tbody>
+      <tr><td class="num">C1</td><td>New repo, deploy to a subdomain, page shell with three mode tabs, pytest in CI</td><td class="r num">2–3</td><td><span class="pill p-tue">Tue 13:30</span></td><td>Q12</td></tr>
+      <tr><td class="num">C2</td><td>Geometry core: <code>circ</code>, Jansen and four-bar joints, jam and branch checks, Grashof, single-foot measures, whole-beest model; tests against §1</td><td class="r num">3–4</td><td><span class="pill p-tue">Tue 13:30</span></td><td>Q4, Q14, Q20</td></tr>
+      <tr><td class="num">C3</td><td>Canvas renderer: links as sticks, crank animation, path traces, jam warning, slider panel, travel arrow</td><td class="r num">3–4</td><td><span class="pill p-tue">Tue 13:30</span></td><td>Q21</td></tr>
+      <tr><td class="num">C4</td><td>Four-bar mode: four lengths, Grashof label, coupler trace, tracing point</td><td class="r num">2–3</td><td><span class="pill p-tue">Tue 13:30</span></td><td>Q7</td></tr>
+      <tr><td class="num">C5</td><td>Playground: 13 sliders, foot path relative to the body, stride as a number, shaded "down" band, reset to Jansen</td><td class="r num">2–3</td><td><span class="pill p-tue">Tue 15:15</span></td><td>Q4</td></tr>
+      <tr><td class="num">C6</td><td>GA engine using the slide names, settings route, search presets, gene mask</td><td class="r num">3–4</td><td><span class="pill p-wed">Wed 09:00</span></td><td>Q6, Q16, Q17</td></tr>
+      <tr><td class="num">C7</td><td>Fitness ingredients, weights, three normalisations, flip, winner checks (turns fully, fits sticks)</td><td class="r num">2–3</td><td><span class="pill p-wed">Wed 10:45</span></td><td>Q1, Q5, Q8, Q15, Q18</td></tr>
+      <tr><td class="num">C8</td><td>Graph of best and average score per generation</td><td class="r num">1–2</td><td><span class="pill p-wed">Wed 09:00</span></td><td>Q17, Q18, Q21</td></tr>
+      <tr><td class="num">C9</td><td>Code route: editor for <code>fitness</code> and <code>mutate</code>, tracebacks, a Stop that works on an endless loop</td><td class="r num">3–6</td><td><span class="pill p-wed">Wed 10:45</span></td><td>Q9</td></tr>
+      <tr><td class="num">C10</td><td>Leg template printed at 1:1 mm</td><td class="r num">2–3</td><td><span class="pill p-wed">Wed 10:45</span></td><td>Q8, Q19</td></tr>
+      <tr><td class="num">C11</td><td>Self-host Pyodide and wheels; local-server fallback</td><td class="r num">1–2</td><td><span class="pill p-should">should</span></td><td>Q10</td></tr>
+      <tr><td class="num">C12</td><td>Tipping check in the kinematic model</td><td class="r num">1–2</td><td><span class="pill p-should">should</span></td><td>Q1</td></tr>
+      <tr><td class="num">C13</td><td>Arena: pymunk beest on flat ground, drawn live, distance and tipping</td><td class="r num">5–8</td><td><span class="pill p-stretch">stretch</span></td><td>Q1, Q2</td></tr>
+      <tr><td class="num">C14</td><td>Arena races: 10-turn distance, pencils, towel</td><td class="r num">4–6</td><td><span class="pill p-stretch">stretch</span></td><td>Q2</td></tr>
+      <tr><td></td><td>Topology genes; repeated runs; arena against real races</td><td class="r">–</td><td><span class="pill p-stretch">stretch</span></td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Hours are rough elapsed time with you designing and reviewing and me writing, and they assume each piece's questions are answered before it starts. The Tuesday pieces add up to 12–17 h and the Wednesday pieces to 11–18 h, against three build days, so the arena fits only if everything else lands early. If Q1 makes the arena the source of scores, C13 becomes a Wednesday must-have and something else has to give. Priorities follow my reading of your Q11.</p>
+</section>
+
+<section id="order">
+  <h2><span class="sec">§3</span>Build order</h2>
+  <div class="frame">
+    <div class="tl" role="table" aria-label="Build timeline, Friday 23 to Thursday 29 October">
+      <div class="hd"></div><div class="hd">Fri 23</div><div class="hd">Sat 24</div><div class="hd">Sun 25</div><div class="hd">Mon 26</div><div class="hd teach">Tue 27</div><div class="hd teach">Wed 28</div><div class="hd teach">Thu 29</div>
+
+      <div class="rl">Course</div><div></div><div></div><div class="off"></div><div></div>
+      <div class="class"><b>13:30</b> four-bar<br><b>15:15</b> playground</div>
+      <div class="class"><b>09:00</b> searches<br><b>10:45</b> evolve</div>
+      <div class="class">races</div>
+
+      <div class="rl"><small>§5</small>Friday questions</div><div class="al">you, am</div><div></div><div class="off"></div><div></div><div></div><div></div><div></div>
+      <div class="rl"><small>C1</small>Shell, deploy</div><div class="on">first</div><div></div><div class="off"></div><div></div><div></div><div></div><div></div>
+      <div class="rl"><small>C2</small>Geometry core</div><div class="on"></div><div></div><div class="off"></div><div></div><div></div><div></div><div></div>
+      <div class="rl"><small>C3</small>Renderer</div><div class="on"></div><div class="on"></div><div class="off"></div><div></div><div></div><div></div><div></div>
+      <div class="rl"><small>C4</small>Four-bar</div><div class="on">pm</div><div class="on">am</div><div class="off"></div><div></div><div></div><div></div><div></div>
+      <div class="rl"><small>C5</small>Playground</div><div></div><div class="on">am</div><div class="off"></div><div></div><div></div><div></div><div></div>
+      <div class="rl"><small>C6–8</small>GA, fitness, graph</div><div></div><div class="on">pm</div><div class="off"></div><div></div><div></div><div></div><div></div>
+      <div class="rl"><small>C9</small>Code sandbox</div><div></div><div></div><div class="off"></div><div class="on">am</div><div></div><div></div><div></div>
+      <div class="rl"><small>C10</small>Template, test print</div><div></div><div></div><div class="off"></div><div class="on">pm</div><div></div><div></div><div></div>
+      <div class="rl"><small>C11</small>Self-hosting</div><div></div><div></div><div class="off"></div><div class="on">pm</div><div></div><div></div><div></div>
+      <div class="rl">Dry run of Tue and Wed</div><div></div><div></div><div class="off"></div><div class="al">you, eve</div><div></div><div></div><div></div>
+      <div class="rl">Fixes</div><div></div><div></div><div class="off"></div><div></div><div class="opt">am, eve</div><div class="opt">eve</div><div></div>
+      <div class="rl"><small>C12–14</small>Stretch</div><div></div><div></div><div class="off"></div><div class="opt">if spare</div><div></div><div class="opt">eve, for Thu</div><div></div>
+    </div>
+  </div>
+  <p>The order front-loads what Tuesday needs and what de-risks everything else. C1 goes first because the subdomain, runtime and a real device should be proven before any mode is built on them. Saturday ends with Tuesday's two modes deployed and the GA scoring on the settings route, so Monday holds only the code route, printing, self-hosting and a full dry run. Tuesday morning and evening are buffer, not plan.</p>
+</section>
+
+<section id="risks">
+  <h2><span class="sec">§4</span>Risks and fallbacks</h2>
+  <div class="frame"><table>
+    <thead><tr><th>Risk</th><th>Fallback</th></tr></thead>
+    <tbody>
+      <tr><td>Build time runs out (§2 totals)</td><td>Tuesday's modes and the settings route come first; the code route falls back to a plain text box with "reload the page" as its Stop; the arena drops.</td></tr>
+      <tr><td>Venue network blocks jsDelivr or PyPI</td><td>Self-hosted runtime (C11); a copy served from your laptop over a phone hotspot. PyScript will not run from <code>file://</code>, so the laptop copy needs a local server.</td></tr>
+      <tr><td>Student devices are slow</td><td>Default settings sized on the slowest device; the GA yields between generations so the page stays responsive; numpy if Q20 allows.</td></tr>
+      <tr><td>Student code loops forever and freezes the tab</td><td>A Stop that kills the worker (Q9); code kept in browser storage so a reload loses nothing.</td></tr>
+      <tr><td>Template prints at the wrong scale</td><td>A 100 mm calibration bar to check with a ruler; an SVG download as a second route; a test print on the venue printer on Monday.</td></tr>
+      <tr><td>Evolved legs work in the sim but not on sticks</td><td>Branch-switch and margin checks (Q14); build one evolved winner on Monday.</td></tr>
+      <tr><td>Arena physics goes unstable</td><td>Fixed timestep of at least 600 steps per crank turn; arena kept out of scoring unless Q1 says otherwise.</td></tr>
+      <tr><td>A library update changes behaviour mid-course</td><td>Exact versions pinned (PyScript 0.7.31, Pyodide 314.0.2, pymunk 7.3.1), or self-hosted.</td></tr>
+      <tr><td>Sim and slides disagree on names</td><td>Names settled Saturday (Q8, Q15), with a list of slide edits for you.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="questions">
+  <h2><span class="sec">§5</span>Questions for you</h2>
+  <p>Q1–Q11 are the handover's own numbers; Q12 onwards are new. They are grouped by when the build needs the answer.</p>
+
+  <div class="qgroup">
+    <h3>Needed Friday morning</h3>
+    <div class="q"><span class="qn">Q1</span><div>
+      <p class="ask">Where do scores come from: geometry, geometry with a tipping check, the arena, or geometry to evolve and the arena to test and race?</p>
+      <p class="found"><b>Found:</b> the geometry model is roughly 20 to 200 times cheaper per beest than an arena trial, depending on pure Python or numpy (chart in §1). The arena agrees with the kinematics for six legs, reads 10% further for four, and tips the two-legged beest. Arena scoring makes C13 a Wednesday must-have.</p>
+    </div></div>
+    <div class="q"><span class="qn">Q12</span><div>
+      <p class="ask">Which subdomain and repo name, which host, and should it appear on babissimo.net/projects?</p>
+      <p class="found"><b>Found:</b> Cloudflare (as Ratchet) can send the headers Q9's option (b) needs; GitHub Pages (as Torus Chess) cannot.</p>
+    </div></div>
+    <div class="q"><span class="qn">Q13</span><div>
+      <p class="ask">What will the three pairs use (school laptops, Chromebooks, iPads, their own), in which browser, and is there a printer you can test at 100%?</p>
+      <p class="found"><b>Found:</b> all timings here are from your Mac. My guess is that a low-end Chromebook runs several times slower, which sets the default population and generations.</p>
+    </div></div>
+    <div class="q"><span class="qn">Q14</span><div>
+      <p class="ask">Does a joint switching intersection mid-turn count as a jam, and is there a near-jam margin?</p>
+      <p class="opts"><b>Options:</b> (a) a switch counts as a jam; (b) after the first angle each joint follows the intersection nearest its last position, as a built leg would, and the sim flags where that differs from the max-y/min-x rule; (c) leave the rule as it is. A margin above about 1 mm rejects Jansen (§1). Also: is 180 angles, as in your crossover test, fine enough?</p>
+    </div></div>
+    <div class="q"><span class="qn">Q4</span><div>
+      <p class="ask">What tolerance counts as "down" for stride and time down, and can students change it?</p>
+      <p class="found"><b>Found:</b> stride runs from 50 to 68 across tolerances of 0.5 to 4 (§1), so Tuesday's "beat Jansen by hand" number depends on it.</p>
+    </div></div>
+    <div class="q"><span class="qn">Q7</span><div>
+      <p class="ask">Does the four-bar mode offer an offset tracing point whatever the build uses, and is it set as a distance along the coupler plus a sideways offset, or as two triangle sides?</p>
+      <p class="found"><b>Found:</b> waiting on your build test; the sim can do either.</p>
+    </div></div>
+    <div class="q"><span class="qn">Q15</span><div>
+      <p class="ask">What does <code>fitness</code> receive, and what is it called?</p>
+      <p class="found"><b>Found:</b> the slides use <code>fitness(leg)</code> with <code>leg.jams</code>, <code>leg.stride</code> and <code>leg.step_height</code>, but scoring is per beest. Keep <code>leg</code> and hang the beest measures on it, rename it <code>beest</code>, or pass both? And "flatness" is not yet defined: the foot's height range while down (depends on Q4), or body bob (needs no tolerance)?</p>
+    </div></div>
+  </div>
+
+  <div class="qgroup">
+    <h3>Needed by Saturday afternoon</h3>
+    <div class="q"><span class="qn">Q9</span><div>
+      <p class="ask">How do students edit and run code, and what happens on an error or an endless loop?</p>
+      <p class="opts"><b>Options for Stop:</b> (a) the GA runs in a worker that Stop terminates, then restarts in a few seconds, on any host; (b) Pyodide's interrupt, which needs cross-origin isolation headers (Q12); (c) a time check inside the GA loop, which cannot stop a loop inside student code. On an error: show the traceback, then halt or carry on with the last code that ran? One editor for both functions or two? Keep each pair's code in the browser?</p>
+    </div></div>
+    <div class="q"><span class="qn">Q16</span><div>
+      <p class="ask">How are leg count and crank phase stored and mutated, and which lengths does the stick cap bind?</p>
+      <p class="found"><b>Found:</b> the slide's <code>random.gauss(0, 3)</code> suits lengths in mm but not a whole number of pairs or an angle. a and l are frame offsets rather than sticks. What range of pairs (one pair tips over), one phase per throw or even spacing, and is there a minimum hole-to-hole length?</p>
+    </div></div>
+    <div class="q"><span class="qn">Q8</span><div>
+      <p class="ask">How many mm per Jansen unit, and are genes held in mm or in Jansen units?</p>
+      <p class="found"><b>Found:</b> Jansen's longest link is h = 65.7, so the 104 mm cap allows at most 1.58 mm per unit for Jansen's own leg, with no headroom left for evolution at that scale. The slides also call normalisation "scaling", which collides with this scale; rename one?</p>
+    </div></div>
+    <div class="q"><span class="qn">Q5</span><div>
+      <p class="ask">Where do the fixed per-ingredient limits for the second normalisation come from?</p>
+      <p class="opts"><b>Options:</b> round numbers you pick from Jansen's values; the best found by a single-ingredient search run beforehand; bounds derived from the stick cap.</p>
+    </div></div>
+    <div class="q"><span class="qn">Q18</span><div>
+      <p class="ask">With per-generation normalisation, what should the graph plot?</p>
+      <p class="found"><b>Found:</b> scaling each generation by its own min and max puts the best near 1 every generation, so the graph shows no progress and an elite's score changes as it is carried over. With the first normalisation, Jansen's three-pair body bob is 0.08, so dividing by it magnifies small differences, and flipped scores go negative for beests worse than Jansen. Plot the raw ingredients alongside?</p>
+    </div></div>
+    <div class="q"><span class="qn">Q6</span><div>
+      <p class="ask">Which crossover is the default, and is it a setting students compare?</p>
+      <p class="opts"><b>Options:</b> whole-length swap (the slides' "uniform", 25–35% jammed children), blend (12–13%), swap whole triangles (b, d, e and g, i, h travel together), none.</p>
+    </div></div>
+    <div class="q"><span class="qn">Q17</span><div>
+      <p class="ask">For Wednesday's comparison, is "the same time" the same seconds or the same number of fitness evaluations, and do the runs overlay on one graph?</p>
+      <p class="found"><b>Found:</b> seconds favour fast code and vary by device; evaluations are repeatable. A visible, settable random seed would let a pair rerun a result.</p>
+    </div></div>
+  </div>
+
+  <div class="qgroup">
+    <h3>Needed by Monday</h3>
+    <div class="q"><span class="qn">Q19</span><div>
+      <p class="ask">What does the template show: each stick on its own with holes and 5 mm end margins, the assembled leg, or both? Which paper size, and does the four-bar get one too?</p>
+    </div></div>
+    <div class="q"><span class="qn">Q10</span><div>
+      <p class="ask">Can you test the venue's network before Tuesday, and should the runtime be self-hosted regardless?</p>
+      <p class="found"><b>Found:</b> about 9 MB from three outside hosts; PyPI is needed only for pymunk. Self-hosted, it is about 16 MB, largest file 9.4 MB, which fits either host.</p>
+    </div></div>
+    <div class="q"><span class="qn">Q2</span><div>
+      <p class="ask">If the arena ships: what terrain (pencil diameter and spacing; what a towel is in 2D: grip, bumps or give), what masses and friction, constant-speed motor or not, and how many of the six overlapping legs to draw?</p>
+    </div></div>
+    <div class="q"><span class="qn">Q11</span><div>
+      <p class="ask">Do the priorities in §2 match yours, and what drops if Q1 brings the arena in?</p>
+    </div></div>
+    <div class="q"><span class="qn">Q20</span><div>
+      <p class="ask">numpy or pure Python in the core?</p>
+      <p class="found"><b>Found:</b> numpy is about 5 times faster per beest (0.5 ms against 2.9 ms) but adds 2.8 MB, and its array code is harder for students to read than a loop.</p>
+    </div></div>
+    <div class="q"><span class="qn">Q21</span><div>
+      <p class="ask">Drawing from Python through the canvas API, or a thin JavaScript drawing layer; and the graph hand-drawn, Chart.js, or matplotlib (several MB more)?</p>
+    </div></div>
+    <div class="q done"><span class="qn">Q3</span><div>
+      <p class="ask">Answered: pymunk works in PyScript and is fast enough for testing and racing (§1). Its only cost is the PyPI dependency in Q10.</p>
+    </div></div>
+  </div>
+</section>
+</main>
