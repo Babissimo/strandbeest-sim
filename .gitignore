@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+.pytest_cache/
+test-results/
+node_modules/
+# Fetched by scripts/vendor.py.
+site/vendor/
+.claude/worktrees/
