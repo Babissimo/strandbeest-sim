@@ -25,8 +25,9 @@ answer you built on. When he is present, ask him rather than choosing.
 ## Layout
 
 - `site/`: everything served, as plain static files with no build step.
-  - `site/beest/`: the model (geometry, measures, fitness, GA, templates). Standard library only, so
-    it runs the same under CPython and Pyodide; no `js`, `pyscript` or numpy imports.
+  - `site/beest/`: the model (geometry, measures, fitness, GA, templates). Standard library only
+    (except `arena.py`, which imports pymunk), so it runs the same under CPython and Pyodide; no
+    `js`, `pyscript` or numpy imports.
   - `site/app/`: browser glue (PyScript, canvas drawing, the GA worker).
   - `site/vendor/`: PyScript and Pyodide, fetched by `scripts/vendor.py`; gitignored.
 - `scripts/`: `vendor.py`, `serve.py`, `survey_limits.py`, `cloud_setup.sh`.

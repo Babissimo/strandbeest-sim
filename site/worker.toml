@@ -2,9 +2,10 @@
 # pyodide.mjs to PyWorker itself, since a worker does not read `interpreter`.
 interpreter = "./vendor/pyodide/pyodide.mjs"
 
-# Every module the worker imports, copied into its Python's working folder.
+# All of beest/ and every app/ module the worker imports, copied into its Python's working folder.
 [files]
 "./beest/__init__.py" = "./beest/__init__.py"
+"./beest/arena.py" = "./beest/arena.py"
 "./beest/fitness.py" = "./beest/fitness.py"
 "./beest/ga.py" = "./beest/ga.py"
 "./beest/geometry.py" = "./beest/geometry.py"

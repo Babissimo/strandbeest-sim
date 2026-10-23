@@ -6,6 +6,7 @@ interpreter = "./vendor/pyodide/pyodide.mjs"
 # which is on sys.path.
 [files]
 "./beest/__init__.py" = "./beest/__init__.py"
+"./beest/arena.py" = "./beest/arena.py"
 "./beest/fitness.py" = "./beest/fitness.py"
 "./beest/ga.py" = "./beest/ga.py"
 "./beest/geometry.py" = "./beest/geometry.py"
