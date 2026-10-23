@@ -162,7 +162,8 @@ class Animator:
     It starts paused with the crank at 0°, and Play turns it. A full turn goes round and round. A
     linkage that jams swings from the start to its last position before the jam and back.
     `draw(index)` draws the linkage at that traced angle (None when nothing was traced) and says
-    whether it could; a new trace or `redraw` draws it again while paused. The root element shows
+    whether it could; a new trace or `redraw` draws it again while paused, and after a drawing
+    failure. The root element shows
     `data-playing`, `data-angle`, the angle drawn last, and `data-drawn-to`, the furthest angle
     drawn since the trace was loaded, both in whole degrees. Frames start with the first `load`.
     """
@@ -211,8 +212,9 @@ class Animator:
         self.redraw()
 
     def redraw(self) -> None:
-        """Draws again on the next frame, playing or not."""
+        """Draws again on the next frame, playing or not, even after a drawing failure."""
         self._stale = True
+        self._failed = False
         self._wake()
 
     def draw_now(self) -> None:
@@ -266,7 +268,8 @@ class Animator:
         try:
             drew = self.draw(index)
         except Exception:
-            # Logged once; drawing waits for the next trace rather than failing every frame.
+            # Logged once; drawing waits for the next trace or redraw rather than failing every
+            # frame.
             self._failed = True
             raise
         if not drew:

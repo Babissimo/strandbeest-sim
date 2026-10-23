@@ -179,6 +179,11 @@ class Report:
     `best_jams` and `best_fits` are its winner checks. `mean_score` covers the beests this
     generation tried (hill climbing's parent and child). `evaluations` counts every fitness call
     so far.
+
+    The `run_best_` fields describe the best beest of the whole run so far in the same way:
+    the highest-scoring of the generations' best beests, a tie going to the later one.
+    `run_best_generation` is the generation it first led. Under per-generation normalisation
+    scores compare only within one generation, so the latest best is the run's best.
     """
     generation: int
     evaluations: int
@@ -189,11 +194,19 @@ class Report:
     best_values: dict[str, float]
     best_jams: bool
     best_fits: bool
+    run_best_generation: int
+    run_best_score: float
+    run_best_genes: list[float]
+    run_best_layout: Layout
+    run_best_values: dict[str, float]
+    run_best_jams: bool
+    run_best_fits: bool
 
     def as_dict(self) -> dict:
         """The report as plain dicts, lists and numbers, ready to send from a web worker."""
         plain = asdict(self)
         plain["best_layout"]["phases"] = list(self.best_layout.phases)
+        plain["run_best_layout"]["phases"] = list(self.run_best_layout.phases)
         return plain
 
 
@@ -303,6 +316,8 @@ class _Search:
         self.evaluations = 0
         # The beests built for the last generation, by genes and layout; leg_from is deterministic.
         self.built: dict[tuple[tuple[float, ...], Layout], _Beest] = {}
+        # The run's best beest so far, its score and the generation it first led.
+        self.run_best: tuple[_Beest, float, int] | None = None
 
     def more(self, cost: int = 1) -> bool:
         """Whether a further generation costing at least `cost` evaluations fits in the run."""
@@ -354,11 +369,25 @@ class _Search:
         self.evaluations += len(legs)
         return scores
 
+    def keep_run_best(self, beest: _Beest, score: float) -> tuple[_Beest, float, int]:
+        """The run's best once this generation's best, scoring `score`, is counted."""
+        held = self.run_best
+        if held is None or self.together or score >= held[1]:
+            same = held is not None and (held[0].genes, held[0].layout) == (beest.genes,
+                                                                            beest.layout)
+            self.run_best = beest, score, held[2] if same else self.generation
+        return self.run_best
+
     def report(self, beest: _Beest, score: float, scores: list[float]) -> Report:
+        top, top_score, found = self.keep_run_best(beest, score)
         report = Report(generation=self.generation, evaluations=self.evaluations, best_score=score,
                         mean_score=sum(scores) / len(scores), best_genes=list(beest.genes),
                         best_layout=beest.layout, best_values=ingredient_values(beest.leg),
-                        best_jams=beest.leg.jams, best_fits=beest.leg.fits)
+                        best_jams=beest.leg.jams, best_fits=beest.leg.fits,
+                        run_best_generation=found, run_best_score=top_score,
+                        run_best_genes=list(top.genes), run_best_layout=top.layout,
+                        run_best_values=ingredient_values(top.leg), run_best_jams=top.leg.jams,
+                        run_best_fits=top.leg.fits)
         self.generation += 1
         return report
 

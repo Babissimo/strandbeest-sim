@@ -115,7 +115,7 @@ class ArenaMode:
         self.opened(None)
 
     def offer_evolved(self, genes: list[float], layout: Layout) -> None:
-        """Makes Evolve's best beest (13 lengths a to m in mm, and its layout) a choice.
+        """Makes Evolve's best beest of the run (13 lengths a to m in mm, and its layout) a choice.
 
         Evolve calls this as it shows each best, so it only notes the beest: the arena stands it
         up when the tab is opened or the user acts, and never stops a walk for it.

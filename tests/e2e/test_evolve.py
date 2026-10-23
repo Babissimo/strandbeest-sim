@@ -41,6 +41,11 @@ def stop_after(page: Page, kind: str, count: int) -> None:
     page.locator(f"#ev-{kind}").fill(str(count))
 
 
+def column(page: Page, kind: str):
+    """The best beest of the latest generation ("latest") or of the whole run ("run")."""
+    return page.locator(f'.best-beest[data-best="{kind}"]')
+
+
 def test_worker_starts_when_the_mode_is_shown(page: Page) -> None:
     configs = []
     page.context.on("request", lambda request: configs.append(request.url)
@@ -65,11 +70,21 @@ def test_default_run_completes(evolve: Page) -> None:
     expect(root).to_have_attribute("data-evaluations", str(ga.GENERATIONS * ga.POP_SIZE))
     for check in ("turns", "fits"):
         expect(root).to_have_attribute(f"data-winner-{check}", re.compile("^(true|false)$"))
-        shown = evolve.locator(f'[data-check="{check}"]')
+        shown = column(evolve, "latest").locator(f'[data-check="{check}"]')
         expect(shown).to_be_visible()
         expect(shown).to_have_text(re.compile("^[✓✗] "))
     # The panel's defaults are the engine's, and Pyodide repeats CPython's run exactly.
-    assert root.get_attribute("data-best-score") == repr(ga.run(ga.RunSettings()).best_score)
+    final = ga.run(ga.RunSettings())
+    assert root.get_attribute("data-best-score") == repr(final.best_score)
+    # The elites keep the best, so the run's best is the same beest, said once and drawn once.
+    assert final.run_best_genes == final.best_genes
+    expect(root).to_have_attribute("data-same-best", "true")
+    expect(root).to_have_attribute("data-run-best-score", repr(final.run_best_score))
+    expect(root).to_have_attribute("data-run-best-generation", str(final.run_best_generation))
+    expect(column(evolve, "run").locator(".ev-same")).to_contain_text(
+        f"The same beest as the best of the latest generation. It has been the best of the run "
+        f"since generation {final.run_best_generation}.")
+    expect(column(evolve, "run").locator(".best-shown")).to_be_hidden()
     # The best beest stands still at 0° until Play turns it.
     expect(root).to_have_attribute("data-playing", "false")
     expect(root).to_have_attribute("data-angle", "0")
@@ -146,6 +161,36 @@ def test_seed_repeats(evolve: Page) -> None:
     expect(evolve.locator(".ev-legend li").first).to_have_text("Run 1: GA, seed 7")
 
 
+def test_best_of_the_run_beside_the_latest(evolve: Page) -> None:
+    # With no elites the GA loses generation 0's best, which the run's column keeps.
+    settings = ga.RunSettings(elite=0, pop=10, generations=6, seed=2)
+    final = ga.run(settings)
+    assert final.run_best_genes != final.best_genes
+    evolve.locator("details", has_text="More settings").locator("summary").click()
+    evolve.locator("#ev-elite").fill("0")
+    evolve.locator("#ev-pop").fill("10")
+    evolve.locator("#ev-seed").fill("2")
+    stop_after(evolve, "generations", 6)
+    run_and_wait(evolve)
+    root = mode(evolve)
+    expect(root).to_have_attribute("data-same-best", "false")
+    expect(root).to_have_attribute("data-best-score", repr(final.best_score))
+    expect(root).to_have_attribute("data-run-best-score", repr(final.run_best_score))
+    expect(root).to_have_attribute("data-run-best-generation", str(final.run_best_generation))
+    for kind, prefix, jams, fits in (("latest", "", final.best_jams, final.best_fits),
+                                     ("run", "run-", final.run_best_jams, final.run_best_fits)):
+        expect(root).to_have_attribute(f"data-{prefix}winner-turns", str(not jams).lower())
+        expect(root).to_have_attribute(f"data-{prefix}winner-fits", str(fits).lower())
+        for check in ("turns", "fits"):
+            expect(column(evolve, kind).locator(f'[data-check="{check}"]')).to_be_visible()
+    expect(column(evolve, "run").locator(".which")).to_contain_text(
+        f"the best since generation {final.run_best_generation}")
+    expect(column(evolve, "run").locator(".ev-same")).to_be_hidden()
+    # One crank turns both.
+    root.get_by_role("button", name="Play").click()
+    expect(root).not_to_have_attribute("data-angle", "0")
+
+
 def test_settings_error_is_shown_beside_run(evolve: Page) -> None:
     evolve.locator("#ev-pop").fill("2")
     evolve.get_by_role("button", name="Run", exact=True).click()
@@ -188,6 +233,9 @@ def test_relative_axis_label(evolve: Page) -> None:
     run_and_wait(evolve)
     expect(mode(evolve)).to_have_attribute("data-axis", "Score, relative to this generation")
     expect(evolve.locator("#ev-normalisation-hint")).to_contain_text("same generation")
+    # Relative scores do not compare across generations, so the latest best is the run's.
+    expect(mode(evolve)).to_have_attribute("data-same-best", "true")
+    expect(column(evolve, "run").locator(".ev-same")).to_contain_text("cannot be compared")
     evolve.locator("#ev-normalisation").select_option("jansen")
     run_and_wait(evolve)
     expect(mode(evolve)).to_have_attribute("data-axis", "Score")

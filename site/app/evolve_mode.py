@@ -1,13 +1,17 @@
-"""Evolve mode: the settings panel, runs in a worker, the progress graph and the best beest.
+"""Evolve mode: the settings panel, runs in a worker, the progress graph and the best beests.
 
 The GA runs in a PyScript worker (app/ga_worker.py), so the page stays responsive. The worker
 starts the first time the mode is on screen. Stop terminates it and starts a fresh one, which
 also ends code that never returns; so does a run of the editor's code, or a worker that fails.
+Two beests are shown side by side, the best of the latest generation and the best of the whole
+run so far, turned by one crank; the template and the arena take the run's best.
 The root element mirrors the mode's state in `data-*` attributes: status (starting, ready,
 running or error), generation and evaluations (of the latest report in the run), best-score,
-series (runs on the graph), points (in the latest run), winner-turns, winner-fits, graph-view,
-axis (the score axis's title), route (settings or code) and, when a run fails, error and, for
-an error in the editor's code with a line, error-line.
+winner-turns and winner-fits (the latest generation's best), run-best-score,
+run-best-generation, run-winner-turns and run-winner-fits (the run's best), same-best (whether
+they are one beest), the crank's playing, angle and drawn-to, series (runs on the graph), points
+(in the latest run), graph-view, axis (the score axis's title), route (settings or code) and,
+when a run fails, error and, for an error in the editor's code with a line, error-line.
 """
 from __future__ import annotations
 
@@ -24,7 +28,7 @@ from pyscript import PyWorker, document, window
 
 from app import draw, job
 from app.beest_picture import BeestPicture
-from app.controls import listen
+from app.controls import Animator, listen
 from app.editor import CodePanel
 from app.graph import MAX_SERIES, Graph, label, reading, short, title
 from app.leg_mode import TOLERANCE_BOUNDS
@@ -32,7 +36,7 @@ from app.printing import TemplateButtons
 from app.storage import keep, recall
 from beest import ga
 from beest.fitness import INGREDIENTS, NORMALISATIONS, fixed_limits
-from beest.geometry import JAM_MARGIN_MM, LENGTH_NAMES
+from beest.geometry import DRAW_ANGLES, JAM_MARGIN_MM, LENGTH_NAMES
 from beest.leg import DOWN_TOLERANCE_MM, LENGTH_BOUNDS, STICKS, Layout
 from beest.template import leg_template_svg
 
@@ -41,8 +45,13 @@ WORKER_CONFIG = "./worker.toml"
 PYODIDE = "./vendor/pyodide/pyodide.mjs"
 # A worker not ready after this long counts as failed.
 WORKER_START_S = 90
-# During a run the best beest is drawn again at most this often.
+# During a run the best beests are drawn again at most this often.
 BEST_EVERY_MS = 250
+# The crank angles every beest picture shares: one turn, round and round.
+CRANK_TURN = [2 * math.pi * k / DRAW_ANGLES for k in range(DRAW_ANGLES)]
+# The two best beests on show, by the start of their fields' names in a report.
+BESTS = {"latest": "best_", "run": "run_best_"}
+BEST_FIELDS = ("score", "genes", "layout", "values", "jams", "fits")
 
 # The legend's name for each preset.
 PRESET_NAMES = {"ga": "GA", "hill": "Hill climbing", "random": "Random search"}
@@ -393,10 +402,49 @@ def misfits(genes: list[float]) -> str:
     return "Does not fit on lolly sticks" + (f": {'; '.join(wrong)}" if wrong else "")
 
 
-def best_layout(report: dict) -> Layout:
-    """The layout of a report's best beest."""
-    layout = report["best_layout"]
+def best_of(report: dict, kind: str) -> dict:
+    """One of a report's best beests ("latest" or "run"): its score, genes, layout, values,
+    jams and fits."""
+    return {name: report[BESTS[kind] + name] for name in BEST_FIELDS}
+
+
+def layout_of(beest: dict) -> Layout:
+    layout = beest["layout"]
     return Layout(layout["pairs"], tuple(layout["phases"]))
+
+
+def facts_html(beest: dict, which: str) -> str:
+    """A best beest's winner checks, ingredients, lengths and layout, under `which` (HTML)."""
+    turns, fits = not beest["jams"], beest["fits"]
+    turns_text = f"{TICK} Turns fully" if turns else f"{CROSS} Jams: it cannot turn fully"
+    fits_text = f"{TICK} Fits on lolly sticks" if fits else f"{CROSS} {misfits(beest['genes'])}"
+    numbers = "".join(f"<dt>{html.escape(label(name))}</dt><dd>{reading(name, value)}</dd>"
+                      for name, value in beest["values"].items())
+    lengths = " ".join(f"<span><b>{name}</b> {length:.1f}</span>"
+                       for name, length in zip(LENGTH_NAMES, beest["genes"]))
+    layout = beest["layout"]
+    phases = ", ".join(f"{p:.0f}°" for p in layout["phases"])
+    return f"""
+<p class="which">{which}: score <b>{short(beest["score"])}</b></p>
+<ul class="checks">
+  <li class="{'ok' if turns else 'bad'}" data-check="turns">{turns_text}</li>
+  <li class="{'ok' if fits else 'bad'}" data-check="fits">{fits_text}</li>
+</ul>
+<dl class="numbers">{numbers}</dl>
+<p class="lengths">Lengths in mm: {lengths}</p>
+<p class="layout">{layout["pairs"]} pair{'' if layout["pairs"] == 1 else 's'} of legs, cranks at
+  {phases}</p>
+"""
+
+
+def same_note(relative: bool, since: int) -> str:
+    """What the run's column says when its best is the latest generation's best."""
+    if relative:
+        return ("The same beest as the best of the latest generation. Scores relative to each "
+                "generation cannot be compared between generations, so the latest best counts as "
+                "the best of the run.")
+    return (f"The same beest as the best of the latest generation. It has been the best of the "
+            f"run since generation {since}.")
 
 
 class Run:
@@ -414,7 +462,8 @@ class Run:
 
 
 class EvolveMode:
-    """`on_best` is given each best beest the panel shows: its 13 lengths and its layout."""
+    """`on_best` is given the run's best beest each time the panel shows the bests: its 13
+    lengths and its layout."""
 
     def __init__(self, root, on_best: Callable[[list[float], Layout], None] | None = None):
         self.root = root
@@ -425,12 +474,12 @@ class EvolveMode:
         self.runs = 0
         self.best: dict | None = None
         self.best_run: Run | None = None
-        # The report whose best beest is on show, which the template prints.
+        # The report whose best beests are on show; the template prints the run's best.
         self.shown_best: dict | None = None
         self._shown: dict[str, str] = {}
         self._scheduled = False
         self._best_shown = False
-        # When the best beest was last drawn, in ms on the animation clock.
+        # When the best beests were last drawn, in ms on the animation clock.
         self._best_drawn = -math.inf
         # What the status line last said about a run.
         self._said = ""
@@ -450,12 +499,17 @@ class EvolveMode:
         self.progress = root.querySelector(".ev-progress")
         self.legend = root.querySelector(".ev-legend")
         self.readout = root.querySelector(".ev-readout")
-        self.facts = root.querySelector(".ev-facts")
+        self.columns = {kind: root.querySelector(f'.best-beest[data-best="{kind}"]')
+                        for kind in BESTS}
         canvas = root.querySelector(".ev-graph")
         self.graph = Graph(canvas, window)
         # The view only sizes the graph's canvas, at the screen's pixel density.
         self.graph_canvas = draw.View(canvas, self._graph_resized)
-        self.picture = BeestPicture(root, root.querySelector(".ev-beest"))
+        self.pictures = {kind: BeestPicture(column.querySelector(".ev-beest"),
+                                            self._pictures_resized, "The best beest appears here.")
+                         for kind, column in self.columns.items()}
+        # One crank turns every picture, so they keep in step; it starts once there is a best.
+        self.animator = Animator(root, self._draw_beests)
         # Disabled until a run has a best beest to print.
         self.template = TemplateButtons(root, root.querySelector(".ev-template"),
                                         "Print the leg template", "strandbeest-leg-template",
@@ -733,51 +787,62 @@ class EvolveMode:
         self._best_shown = True
         report = self.best
         if report is None:
-            self.facts.innerHTML = ('<p class="hint">Press Run and the best beest of each '
-                                    'generation appears here.</p>')
+            for kind, text in (("latest", "Press Run and the best beest of the latest generation "
+                                          "appears here."),
+                               ("run", "The best beest of the whole run so far appears here.")):
+                self.columns[kind].querySelector(".ev-facts").innerHTML = (
+                    f'<p class="hint">{text}</p>')
             return
         run = self.best_run
         self.shown_best = report
         self.template.enable()
-        self._mirror("best-score", repr(report["best_score"]))
-        self._mirror("winner-turns", str(not report["best_jams"]).lower())
-        self._mirror("winner-fits", str(report["best_fits"]).lower())
-        self.picture.show(report["best_genes"], report["best_layout"]["phases"],
-                          run.settings.margin, report["best_jams"])
-        turns, fits = not report["best_jams"], report["best_fits"]
-        turns_text = f"{TICK} Turns fully" if turns else f"{CROSS} Jams: it cannot turn fully"
-        fits_text = (f"{TICK} Fits on lolly sticks" if fits
-                     else f"{CROSS} {misfits(report['best_genes'])}")
-        numbers = "".join(f"<dt>{html.escape(label(name))}</dt><dd>{reading(name, value)}</dd>"
-                          for name, value in report["best_values"].items())
-        lengths = " ".join(f"<span><b>{name}</b> {length:.1f}</span>"
-                           for name, length in zip(LENGTH_NAMES, report["best_genes"]))
-        layout = report["best_layout"]
-        phases = ", ".join(f"{p:.0f}°" for p in layout["phases"])
-        self.facts.innerHTML = f"""
-<p class="which">{html.escape(run.series.label)}, generation {report["generation"]}:
-  score <b>{short(report["best_score"])}</b></p>
-<ul class="checks">
-  <li class="{'ok' if turns else 'bad'}" data-check="turns">{turns_text}</li>
-  <li class="{'ok' if fits else 'bad'}" data-check="fits">{fits_text}</li>
-</ul>
-<dl class="numbers">{numbers}</dl>
-<p class="lengths">Lengths in mm: {lengths}</p>
-<p class="layout">{layout["pairs"]} pair{'' if layout["pairs"] == 1 else 's'} of legs, cranks at
-  {phases}</p>
-"""
+        latest, top = best_of(report, "latest"), best_of(report, "run")
+        since = report["run_best_generation"]
+        same = (latest["genes"], latest["layout"]) == (top["genes"], top["layout"])
+        for prefix, beest in (("", latest), ("run-", top)):
+            self._mirror(f"{prefix}best-score", repr(beest["score"]))
+            self._mirror(f"{prefix}winner-turns", str(not beest["jams"]).lower())
+            self._mirror(f"{prefix}winner-fits", str(beest["fits"]).lower())
+        self._mirror("run-best-generation", str(since))
+        self._mirror("same-best", str(same).lower())
+        name = html.escape(run.series.label)
+        shown = [("latest", latest, f"{name}, generation {report['generation']}")]
+        if not same:
+            shown.append(("run", top, f"{name}, the best since generation {since}"))
+        for kind, beest, which in shown:
+            self.pictures[kind].show(beest["genes"], beest["layout"]["phases"],
+                                     run.settings.margin, beest["jams"])
+            self.columns[kind].querySelector(".ev-facts").innerHTML = facts_html(beest, which)
+        column = self.columns["run"]
+        column.querySelector(".best-shown").hidden = same
+        note = column.querySelector(".ev-same")
+        note.hidden = not same
+        note.textContent = same_note(run.settings.fitness.normalisation == "generation", since)
+        if self.animator.angles:
+            self.animator.redraw()
+        else:
+            self.animator.load(CRANK_TURN, DRAW_ANGLES, loops=True)
         if self.on_best is not None:
             # The panel is already shown; an error in the receiver goes no further than the console.
             try:
-                self.on_best(report["best_genes"], best_layout(report))
+                self.on_best(top["genes"], layout_of(top))
             except Exception:
                 window.console.error(
                     f"Handing on the best beest failed.\n{traceback.format_exc()}")
 
     def _leg_template(self) -> list[str]:
-        """The template of the best beest on show, for its number of leg pairs."""
-        report = self.shown_best
-        return leg_template_svg(report["best_genes"], best_layout(report))
+        """The template of the run's best beest on show, for its number of leg pairs."""
+        top = best_of(self.shown_best, "run")
+        return leg_template_svg(top["genes"], layout_of(top))
+
+    def _draw_beests(self, index: int | None) -> bool:
+        """Draws both best beests with the crank at this step of its turn."""
+        theta = 0.0 if index is None else CRANK_TURN[index]
+        drew = [picture.draw(theta) for picture in self.pictures.values()]
+        return any(drew)
+
+    def _pictures_resized(self) -> None:
+        self.animator.draw_now()
 
     def _mirror(self, name: str, value: str) -> None:
         if self._shown.get(name) != value:
@@ -862,22 +927,37 @@ STAGE_HTML = """
   <p class="ev-readout"></p>
 </div>
 <div class="panel best-panel">
-  <h3>Best beest</h3>
-  <div class="best-body">
-    <div class="best-picture">
-      <canvas class="ev-beest" role="img" aria-label="The best beest so far, walking left"></canvas>
-      <div class="playback">
-        <button type="button" class="play" disabled>Play</button>
-        <label class="speed-label">Speed
-          <input type="range" class="speed" min="1" max="60" step="1" value="15" disabled>
-        </label>
-        <output class="speed-shown">15 turns a minute</output>
-      </div>
-    </div>
-    <div class="best-facts">
-      <div class="ev-facts"></div>
-      <div class="template ev-template"></div>
+  <div class="panel-head">
+    <h3>Best beests</h3>
+    <div class="playback">
+      <button type="button" class="play" disabled>Play</button>
+      <label class="speed-label">Speed
+        <input type="range" class="speed" min="1" max="60" step="1" value="15" disabled>
+      </label>
+      <output class="speed-shown">15 turns a minute</output>
     </div>
   </div>
+  <div class="best-pair">
+    <div class="best-beest" data-best="latest">
+      <h4>Best of the latest generation</h4>
+      <div class="best-shown">
+        <canvas class="ev-beest" role="img"
+          aria-label="The best beest of the latest generation, walking left"></canvas>
+        <div class="ev-facts"></div>
+      </div>
+    </div>
+    <div class="best-beest" data-best="run">
+      <h4>Best of the whole run so far</h4>
+      <p class="hint ev-same" hidden></p>
+      <div class="best-shown">
+        <canvas class="ev-beest" role="img"
+          aria-label="The best beest of the whole run so far, walking left"></canvas>
+        <div class="ev-facts"></div>
+      </div>
+    </div>
+  </div>
+  <p class="hint">The leg template is for the best beest of the whole run so far, and so is
+    "The best from Evolve" in the Arena tab.</p>
+  <div class="template ev-template"></div>
 </div>
 """

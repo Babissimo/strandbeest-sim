@@ -238,6 +238,59 @@ def test_report_matches_its_best_beest():
         assert (final.best_jams, final.best_fits) == (leg.jams, leg.fits)
 
 
+def test_run_best_keeps_a_beest_the_ga_lost():
+    # Without elites the GA's best in generation 0 is not carried on, and later ones score lower.
+    seen = reports(ga.RunSettings(elite=0, seed=2, **SMALL))
+    assert seen[-1].best_score < seen[0].best_score
+    record = -math.inf
+    for report in seen:
+        record = max(record, report.best_score)
+        assert report.run_best_score == record
+        found = seen[report.run_best_generation]
+        assert report.run_best_score == found.best_score
+        assert (report.run_best_genes, report.run_best_layout) == (found.best_genes,
+                                                                   found.best_layout)
+    assert seen[-1].run_best_generation == 0
+    assert seen[-1].run_best_genes != seen[-1].best_genes
+
+
+def test_run_best_matches_its_beest():
+    for preset in ga.PRESETS:
+        final = ga.run(ga.RunSettings(preset=preset, elite=0, seed=2, **SMALL))
+        leg = leg_from(final.run_best_genes, final.run_best_layout)
+        assert final.run_best_values["distance"] == leg.distance
+        assert final.run_best_values["flatness"] == leg.bob
+        assert (final.run_best_jams, final.run_best_fits) == (leg.jams, leg.fits)
+
+
+def test_run_best_follows_a_search_that_keeps_its_best():
+    # Elites, hill climbing's parent and random search's best so far: the latest best is the
+    # run's, and it keeps the generation it first led.
+    for settings in (ga.RunSettings(seed=1, **SMALL), ga.RunSettings(preset="hill", seed=5, **SMALL),
+                     ga.RunSettings(preset="random", seed=1, **SMALL)):
+        seen = reports(settings)
+        for report in seen:
+            assert (report.run_best_genes, report.run_best_layout, report.run_best_score) == (
+                report.best_genes, report.best_layout, report.best_score)
+            first = next(r for r in seen if r.best_genes == report.best_genes)
+            assert report.run_best_generation == first.generation
+
+
+def test_run_best_takes_a_later_tie():
+    # Every beest scores the same, so each generation's best is the run's.
+    seen = reports(ga.RunSettings(elite=0, seed=1, **SMALL), lambda leg: 1)
+    assert [r.run_best_generation for r in seen] == list(range(SMALL["generations"]))
+    assert all(r.run_best_genes == r.best_genes for r in seen)
+
+
+def test_run_best_under_generation_normalisation_is_the_latest():
+    relative = FitnessSettings(normalisation="generation")
+    seen = reports(ga.RunSettings(elite=0, seed=2, fitness=relative, **SMALL))
+    for report in seen:
+        assert (report.run_best_genes, report.run_best_score) == (report.best_genes,
+                                                                  report.best_score)
+
+
 def test_all_jammed_population_runs():
     for preset in ga.PRESETS:
         for normalisation in ("jansen", "limits", "generation"):
@@ -398,6 +451,7 @@ def test_report_is_plain():
     plain = final.as_dict()
     assert json.loads(json.dumps(plain)) == plain
     assert plain["best_layout"] == {"pairs": 3, "phases": [0.0, 120.0, 240.0]}
+    assert plain["run_best_layout"] == plain["best_layout"]
     assert set(plain["best_values"]) == {"distance", "stride", "step_height", "time_down", "flatness",
                                          "upright"}
 
