@@ -44,6 +44,12 @@ def drawn_to(page: Page, degrees: int, timeout: float = 15_000) -> None:
     )
 
 
+def play(mode: Locator) -> None:
+    """Presses Play: the linkage starts paused."""
+    mode.get_by_role("button", name="Play").click()
+    expect(mode).to_have_attribute("data-playing", "true")
+
+
 def next_frames(page: Page) -> None:
     """Waits for two animation frames, so the page has drawn at least once since the last change."""
     page.evaluate(
@@ -59,6 +65,7 @@ def test_default_turns_fully(page: Page) -> None:
     expect(page.locator("#fourbar-grashof")).to_contain_text("Crank-rocker")
     trace = trace_four_bar(*(shown(mode, name) for name in LINKS), n=DRAW_ANGLES)
     assert not trace.jammed and trace.grashof == "crank-rocker"
+    play(mode)
     drawn_to(page, 350)
 
 
@@ -73,6 +80,7 @@ def test_jam_warning(page: Page) -> None:
     expect(warning).to_contain_text(trace.jam_reason)
     # It swings up to the last angle before the jam, and no further.
     last = round(math.degrees(trace.angles[-1]))
+    play(mode)
     drawn_to(page, last)
     next_frames(page)
     expect(mode).to_have_attribute("data-drawn-to", str(last))
@@ -160,8 +168,18 @@ def test_typed_value_out_of_range_is_clamped(page: Page) -> None:
     expect(box).to_have_value("104")
 
 
+def test_starts_paused_at_the_first_frame(page: Page) -> None:
+    mode = open_four_bar(page)
+    expect(mode).to_have_attribute("data-playing", "false")
+    expect(mode).to_have_attribute("data-drawn-to", "0")
+    page.wait_for_timeout(300)
+    expect(mode).to_have_attribute("data-angle", "0")
+    expect(mode.get_by_role("button", name="Play")).to_be_enabled()
+
+
 def test_pause_and_play(page: Page) -> None:
     mode = open_four_bar(page)
+    play(mode)
     drawn_to(page, 10)
     mode.get_by_role("button", name="Pause").click()
     expect(mode).to_have_attribute("data-playing", "false")
@@ -169,7 +187,13 @@ def test_pause_and_play(page: Page) -> None:
     next_frames(page)
     page.wait_for_timeout(200)
     expect(mode).to_have_attribute("data-angle", held)
-    mode.get_by_role("button", name="Play").click()
+    # A change while paused draws the new linkage at the same crank angle, and it stays there.
+    set_lengths(page, 62)
+    expect(mode).to_have_attribute("data-ground", "62.0")
+    expect(mode).to_have_attribute("data-drawn-to", held)
+    page.wait_for_timeout(200)
+    expect(mode).to_have_attribute("data-angle", held)
+    play(mode)
     expect(mode).not_to_have_attribute("data-angle", held)
 
 
@@ -180,6 +204,7 @@ def test_turns_once_its_tab_is_shown(page: Page) -> None:
     )
     mode = page.locator("#fourbar-mode")
     page.get_by_role("link", name="Four-bar", exact=True).click()
+    play(mode)
     drawn_to(page, 10)
     page.get_by_role("link", name="Leg", exact=True).click()
     page.get_by_role("link", name="Four-bar", exact=True).click()

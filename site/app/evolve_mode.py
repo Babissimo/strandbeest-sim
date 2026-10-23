@@ -867,7 +867,7 @@ STAGE_HTML = """
     <div class="best-picture">
       <canvas class="ev-beest" role="img" aria-label="The best beest so far, walking left"></canvas>
       <div class="playback">
-        <button type="button" class="play" disabled>Pause</button>
+        <button type="button" class="play" disabled>Play</button>
         <label class="speed-label">Speed
           <input type="range" class="speed" min="1" max="60" step="1" value="15" disabled>
         </label>

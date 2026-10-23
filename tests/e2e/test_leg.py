@@ -42,6 +42,12 @@ def drawn_to(page: Page, degrees: int, timeout: float = 15_000) -> None:
     )
 
 
+def play(mode: Locator) -> None:
+    """Presses Play: the leg starts paused."""
+    mode.get_by_role("button", name="Play").click()
+    expect(mode).to_have_attribute("data-playing", "true")
+
+
 def next_frames(page: Page) -> None:
     """Waits for two animation frames, so the page has drawn at least once since the last change."""
     page.evaluate(
@@ -69,6 +75,7 @@ def test_shows_jansen_stride(page: Page) -> None:
     assert shown(mode, "time-down") == pytest.approx(measures.time_down, abs=0.005)
     assert shown(mode, "closest-to-jam") == pytest.approx(trace.closest_to_jam, abs=0.05)
     expect(page.locator("#leg-jam")).to_be_hidden()
+    play(mode)
     drawn_to(page, 350)
 
 
@@ -87,6 +94,7 @@ def test_partial_jam_draws(page: Page) -> None:
     # The leg swings up to its last position before the jam, and no further.
     last = round(math.degrees(trace.angles[-1]))
     assert abs(last - 182) <= 2
+    play(mode)
     drawn_to(page, last)
     next_frames(page)
     expect(mode).to_have_attribute("data-drawn-to", str(last))
@@ -97,6 +105,17 @@ def test_partial_jam_draws(page: Page) -> None:
 def jams(lengths: dict[str, float]) -> bool:
     """A leg jams if it jams at either the scoring or the drawing angles."""
     return trace_leg(lengths).jammed or trace_leg(lengths, n=DRAW_ANGLES).jammed
+
+
+def test_paused_leg_redraws_when_a_length_changes(page: Page) -> None:
+    mode = open_leg(page)
+    expect(mode).to_have_attribute("data-playing", "false")
+    expect(mode).to_have_attribute("data-drawn-to", "0")
+    set_lengths(page, j=55)
+    expect(mode).to_have_attribute("data-j", "55.0")
+    expect(mode).to_have_attribute("data-drawn-to", "0")
+    page.wait_for_timeout(300)
+    expect(mode).to_have_attribute("data-angle", "0")
 
 
 def test_reset_restores_jansen(page: Page) -> None:
@@ -149,6 +168,7 @@ def test_lengths_at_their_bounds(page: Page, changes: dict[str, float]) -> None:
     expect(page.locator("#leg-jam")).to_be_visible(visible=jammed)
     if not jammed:
         expect(mode).not_to_have_attribute("data-stride", "")
+        play(mode)
         drawn_to(page, 350)
     next_frames(page)
 
@@ -166,4 +186,5 @@ def test_jam_only_at_scoring_angles(page: Page) -> None:
     expect(page.locator("#leg-jam")).to_contain_text("swing back and forth")
     expect(mode).to_have_attribute("data-stride", "")
     # The scored trace is the one drawn, swinging through its whole turn.
+    play(mode)
     drawn_to(page, round(math.degrees(scored.angles[-1])))

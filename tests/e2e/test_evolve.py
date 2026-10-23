@@ -70,11 +70,12 @@ def test_default_run_completes(evolve: Page) -> None:
         expect(shown).to_have_text(re.compile("^[✓✗] "))
     # The panel's defaults are the engine's, and Pyodide repeats CPython's run exactly.
     assert root.get_attribute("data-best-score") == repr(ga.run(ga.RunSettings()).best_score)
-    # The best beest turns.
+    # The best beest stands still at 0° until Play turns it.
+    expect(root).to_have_attribute("data-playing", "false")
+    expect(root).to_have_attribute("data-angle", "0")
+    root.get_by_role("button", name="Play").click()
     expect(root).to_have_attribute("data-playing", "true")
-    expect(root).to_have_attribute("data-angle", re.compile(r"^\d+$"))
-    angle = root.get_attribute("data-angle")
-    expect(root).not_to_have_attribute("data-angle", angle)
+    expect(root).not_to_have_attribute("data-angle", "0")
     expect(evolve.locator(".ev-legend")).to_contain_text("Run 1: GA, seed 1")
     expect(evolve.locator(".ev-progress")).to_contain_text("Finished: 40 generations")
 
@@ -87,6 +88,7 @@ def test_stop_halts_run(evolve: Page) -> None:
     expect(root).to_have_attribute("data-generation", re.compile(r"^([3-9]|\d\d+)$"),
                                    timeout=RUN_TIMEOUT_MS)
     # The page keeps drawing while the worker runs.
+    root.get_by_role("button", name="Play").click()
     angle = root.get_attribute("data-angle")
     expect(root).not_to_have_attribute("data-angle", angle)
     expect(root).to_have_attribute("data-status", "running")

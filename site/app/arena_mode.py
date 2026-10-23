@@ -1,11 +1,12 @@
 """Arena: a whole beest walking on the ground in 2D physics (decisions Q2).
 
 The physics engine (pymunk, on Pyodide's own cffi) loads the first time the tab is opened, so the
-page starts without waiting for it, and the other tabs work even if it cannot load. The root
-element shows `data-status` (loading, ready, running or error), `data-beest`, `data-pairs`,
-`data-jammed` (a beest that cannot be built leaves the status ready, with nothing to start),
-`data-turns`, `data-travel` (mm walked left), `data-distance-per-turn` (empty until a whole turn
-is done) and `data-tipped`. In a race it also shows `data-race`, and once the race is decided,
+page starts without waiting for it, and the other tabs work even if it cannot load. The beest
+stands still until Start. The root element shows `data-status` (loading, ready, running or
+error), `data-playing` (true while it walks), `data-beest`, `data-pairs`, `data-jammed` (a beest
+that cannot be built leaves the status ready, with nothing to start), `data-turns`,
+`data-travel` (mm walked left), `data-distance-per-turn` (empty until a whole turn is done) and
+`data-tipped`. In a race it also shows `data-race`, and once the race is decided,
 `data-outcome` (finished, fell or gave-up) and `data-race-turns`.
 """
 from __future__ import annotations
@@ -104,6 +105,7 @@ class ArenaMode:
         self._scheduled = False
         self._shown: dict[str, str] = {}
         self._frame_proxy = create_proxy(self._frame)
+        self.mirror("playing", "false")
         self._proxies = [listen(window, "hashchange", self.opened),
                          listen(self.start, "click", self.toggle),
                          listen(self.reset, "click", self.rebuild),
@@ -270,6 +272,7 @@ class ArenaMode:
             self.running = True
             self.start.textContent = "Pause"
             self.mirror("status", "running")
+            self.mirror("playing", "true")
             self._wake()
 
     def stop(self) -> None:
@@ -278,6 +281,7 @@ class ArenaMode:
         self._owed = 0.0
         self.start.textContent = "Start"
         self.mirror("status", "ready")
+        self.mirror("playing", "false")
 
     def resized(self) -> None:
         self.show()

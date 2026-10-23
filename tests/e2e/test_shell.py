@@ -70,6 +70,21 @@ def test_start_up_error_is_shown(
     assert page_errors
 
 
+def test_every_tab_starts_paused(page: Page) -> None:
+    page.goto("/")
+    expect(page.locator("#status")).to_have_attribute(
+        "data-status", "ready", timeout=START_TIMEOUT_MS
+    )
+    for mode, label in MODES.items():
+        page.get_by_role("link", name=label, exact=True).click()
+        expect(page.locator(f"#{mode}-mode")).to_have_attribute("data-playing", "false")
+    # The arena stands its beest up once the physics engine has loaded, and it waits for Start.
+    arena = page.locator("#arena-mode")
+    expect(arena).to_have_attribute("data-status", "ready", timeout=START_TIMEOUT_MS)
+    expect(arena).to_have_attribute("data-playing", "false")
+    expect(arena).to_have_attribute("data-turns", "0.0")
+
+
 def test_tabs_switch(page: Page) -> None:
     page.goto("/")
     expect_only(page, "fourbar")
