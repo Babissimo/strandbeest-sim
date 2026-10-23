@@ -26,6 +26,7 @@ interpreter = "./vendor/pyodide/pyodide.mjs"
 "./app/job.py" = "./app/job.py"
 "./app/leg_mode.py" = "./app/leg_mode.py"
 "./app/main.py" = "./app/main.py"
+"./app/printing.py" = "./app/printing.py"
 "./app/storage.py" = "./app/storage.py"
 
 # JavaScript modules imported before the page's Python runs, each as pyscript.js_modules.<name>.

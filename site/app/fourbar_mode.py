@@ -11,8 +11,10 @@ from pyscript import document
 
 from app import draw
 from app.controls import Animator, Slider, announce, shown, swings
+from app.printing import TemplateButtons
 from beest.geometry import DRAW_ANGLES, FourBarTrace, Point, trace_four_bar
 from beest.leg import LENGTH_BOUNDS
+from beest.template import four_bar_template_svg
 
 LINKS = ("ground", "crank", "coupler", "rocker")
 COLOURS = {"ground": draw.GROUND, "crank": draw.CRANK, "coupler": draw.COUPLER,
@@ -67,6 +69,9 @@ class FourBarMode:
         self.view = draw.View(root.querySelector("canvas"), self.resized)
         self.trace: FourBarTrace | None = None
         self.animator = Animator(root, self.draw)
+        self.template = TemplateButtons(root, root.querySelector("#fourbar-template"),
+                                        "Print the sticks", "four-bar-template", self.sticks)
+        self.template.enable()
         self.changed()
 
     @staticmethod
@@ -79,6 +84,10 @@ class FourBarMode:
 
     def value(self, name: str) -> float:
         return self.sliders[name].value
+
+    def sticks(self) -> list[str]:
+        """The template of the four sticks at their lengths now."""
+        return four_bar_template_svg(*(self.value(name) for name in LINKS))
 
     def changed(self) -> None:
         """Traces the linkage again and shows what it does."""
