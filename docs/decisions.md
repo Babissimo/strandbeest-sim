@@ -338,6 +338,18 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B66 Template fonts** list Arimo and Liberation Sans (Arial's widths) before `sans-serif`, since
   text is placed by estimated Arial widths.
 
+- **B67 Tipping.** At each crank angle the supporting feet are those within the down tolerance of
+  that angle's lowest foot (one setting for "down", Q4), and the beest tips if its centre of mass
+  lies outside their x range; a foot exactly under the centre of mass holds it up. The centre of
+  mass sits over the crank axle (`CENTRE_OF_MASS_X_MM = 0`). At 1 mm Jansen's beest tips on 1 pair
+  and stays up on 2 pairs at 180° (above 0.65 mm) and 3 at 120° (above 0.28 mm).
+- **B68 A jammed leg** has `tips` None (its foot path stops short, so there is nothing to check) and
+  `upright` 0.
+- **B69 `upright` limits** are fixed at 0 and 1 rather than percentiles, since only 5.4% of random
+  working legs stay up. Under Jansen normalisation `upright` divides by Jansen's own value, which is
+  0 at tolerances of 0.28 mm or less, so it then scores 0 for every beest (the slider's 0.5 mm
+  minimum stays clear of this). Its default weight is 0, so S3 stands.
+
 ## Questions for Al
 
 Append questions here as they arise, most important first, each with what it blocks and the
@@ -347,8 +359,11 @@ provisional answer the build went ahead with.
   normalisation) rewards step height without limit. Evolved winners lift their feet 160–390 mm, bob
   14–98 mm and "walk" 450–1,600 mm a turn on a 77 mm crank (Jansen: 27 mm, 0.09 mm, 170 mm, crank
   18 mm); the code route's starting fitness does the same. Options: a flatness weight by default, a
-  cap on step height, or the tipping check (Task 9) in the default. Blocks nothing, but decides what
-  a default run evolves. Built on S3 as written.
+  cap on step height, or `upright` (B69) in the default. On seeds 1–5, 4 of 5 default winners tip;
+  `upright` at weight 3 under Jansen normalisation keeps all five up (step height 57–159 mm, bob
+  1.1–7.6 mm, distance 123–208 mm) where weight 1 does not, and under the limits normalisation
+  weight 1 is enough. Blocks nothing, but decides what a default run evolves. Built on S3 as
+  written, with `upright` at weight 0.
 - **Hill climbing from a jammed start.** A random start jams 81% of the time, and on 2 of 10 seeds
   (the default seed 1 among them) hill climbing is still at 0 after 1,500 evaluations. Option: start
   from the first random beest that turns fully (checking costs no fitness call). Blocks nothing, but
@@ -375,6 +390,10 @@ provisional answer the build went ahead with.
   (`STICKS_PER_PAIR["m"]`).
 - **Chassis.** What is the chassis made of, and from how many pieces? The diagram gives only the
   three holes (B60). Blocks nothing. Built on the holes alone.
+- **Support check.** A beest tips when its centre of mass lies outside the feet within the down
+  tolerance of the lowest foot (B67). At 1 mm that tips 95% of random working legs within ±25% of
+  Jansen's, and Jansen's own 2-pair beest tips at 0.65 mm and below, though the arena spike walked a
+  2-pair beest. Is this the right check? Blocks nothing. Built on the plan's check.
 
 ## Slide edits for Al
 
@@ -388,3 +407,5 @@ Append any place where the simulator and the slides now differ.
 - Tracebacks from the editor's code name the file `<editor>`.
 - On the code route the slide's `mutate` uses its own `gauss(0, 3)`, so the panel's mutation size
   does not apply.
+- Students can read `leg.tips` and `leg.upright`, and there is a sixth ingredient, `upright`
+  (B67, B69).
