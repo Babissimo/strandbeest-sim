@@ -110,6 +110,9 @@ def test_student_errors_come_back_with_editor_lines(source, line, words):
     assert error["kind"] == "student"
     assert error["line"] == line
     assert words in error["message"]
+    if line is not None:
+        message = error["message"]
+        assert message.startswith(f"Line {line}: ") or f" on line {line}" in message
     if error["traceback"] is not None:
         assert "ga.py" not in error["traceback"]
         assert f'"{ga.EDITOR}", line {line}' in error["traceback"]
