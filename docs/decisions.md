@@ -169,6 +169,25 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   survey of 300 crank-rockers these slivers stayed below 0.011, while every real loop was above 0.03.
 - **B10 Tied feet.** When two feet are equally low, the one lower at the next angle carries the body,
   so the order in which throws are listed does not change the distance.
+- **B11 Tabs.** A few lines of inline script route the tabs, so they work during the seconds Python
+  takes to start. Sections are `#fourbar-mode`, `#leg-mode` and `#evolve-mode`, so a `#leg` link does
+  not scroll the page; an unknown hash shows the four-bar.
+- **B12 Page layout.** Each mode's section is the root for its `data-*` attributes and holds `.intro`
+  and a `.workspace` of `.controls` beside `.stage`, stacking below 800 px wide.
+- **B13 Start-up failure.** If PyScript fails to load or the main script stops before Python is
+  ready, the status line says "Python could not start. Try reloading the page." (PyScript would
+  otherwise only log it).
+- **B14 Vendoring.** `scripts/vendor.py` accepts tarballs only from registry.npmjs.org, verifies
+  them, and skips a package already vendored at the pinned version, so cloud sessions can rerun it
+  offline. It keeps all of PyScript's `dist/` (source maps included) and the five Pyodide files in
+  the plan, which proved to be all the page needs.
+- **B15 Dev server.** `scripts/serve.py` also takes `--directory` (for its own unit test) and serves
+  `.toml` as `application/toml` and `.py` as `text/plain`.
+- **B16 Extra checks.** Tests beyond the plan: a start-up error is shown, `pyscript.toml` maps every
+  file in `beest/` and every `.py` in `app/` (hidden files aside), and unit tests for the server and
+  the vendoring. A browser test fails if its page logs an error, unless it is marked
+  `page_errors_expected`. CI keeps a Playwright trace of each failed browser test and stops the
+  browser job after 20 minutes.
 
 ## Questions for Al
 
