@@ -170,17 +170,20 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B10 Tied feet.** When two feet are equally low, the one lower at the next angle carries the body,
   so the order in which throws are listed does not change the distance.
 - **B11 Tabs.** A few lines of inline script route the tabs, so they work during the seconds Python
-  takes to start. Sections are `#fourbar-mode`, `#leg-mode` and `#evolve-mode`, so a `#leg` link does
-  not scroll the page; an unknown hash shows the four-bar.
+  takes to start. Sections are `#fourbar-mode`, `#leg-mode`, `#evolve-mode` and `#arena-mode`, so a
+  `#leg` link does not scroll the page; an unknown hash shows the four-bar.
 - **B12 Page layout.** Each mode's section is the root for its `data-*` attributes and holds `.intro`
   and a `.workspace` of `.controls` beside `.stage`, stacking below 800 px wide.
 - **B13 Start-up failure.** If PyScript fails to load or the main script stops before Python is
   ready, the status line says "Python could not start. Try reloading the page." (PyScript would
   otherwise only log it).
-- **B14 Vendoring.** `scripts/vendor.py` accepts tarballs only from registry.npmjs.org, verifies
-  them, and skips a package already vendored at the pinned version, so cloud sessions can rerun it
-  offline. It keeps all of PyScript's `dist/` (source maps included) and the five Pyodide files in
-  the plan, which proved to be all the page needs.
+- **B14 Vendoring.** `scripts/vendor.py` takes the runtime only from registry.npmjs.org (checked
+  against the registry's sha512), pymunk only from PyPI (checked against PyPI's sha256), and cffi,
+  pycparser and micropip only from Pyodide's GitHub release (each checked against the sha256 in
+  `pyodide-lock.json`, B74). It skips anything already vendored at its pinned version, so cloud
+  sessions can rerun it offline. It keeps all of PyScript's `dist/` (source maps included) and the
+  five Pyodide files in the plan, which proved to be all the page needs, and saves the four wheels
+  beside `pyodide.mjs`.
 - **B15 Dev server.** `scripts/serve.py` also takes `--directory` (for its own unit test) and serves
   `.toml` as `application/toml` and `.py` as `text/plain`.
 - **B16 Extra checks.** Tests beyond the plan: a start-up error is shown, `pyscript.toml` maps every
@@ -350,6 +353,44 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   0 at tolerances of 0.28 mm or less, so it then scores 0 for every beest (the slider's 0.5 mm
   minimum stays clear of this). Its default weight is 0, so S3 stands.
 
+- **B70 Arena tipping.** A beest has tipped once its chassis leans more than 30° from level
+  (`TIP_ANGLE_DEG`) or its chassis box touches the ground, checked at every step from the start.
+  Jansen's beest on 1 pair tips 0.27 turns in.
+- **B71 Arena body.** The chassis is a 30 g box round O and both G pivots with a 5 mm margin
+  (`CHASSIS_MARGIN_MM`); each triangle (b d e, g h i) is one rigid body of three 1 g sticks; the
+  crank is 1 g per throw; feet are circles of 2 mm radius; the parts pass through each other but
+  all touch the ground; friction is 1.0 (`FRICTION`). Over 10 turns Jansen's beest walks 170.2 mm
+  a turn on 2 pairs, 170.8 on 3 and 179.1 on 4 (the kinematic model gives 162.7 and 170.2 for 2 and
+  3).
+- **B72 Arena start.** The lowest point starts 0.5 mm above the ground and the beest stands for
+  300 steps with the crank held (`DROP_MM`, `SETTLE_STEPS`). Travel is measured at the axle from
+  the moment the crank starts, and turns are motor steps ÷ 600, since the crank speed is constant
+  (Q2). The solver makes 30 passes a step (`SOLVER_ITERATIONS`); at 10, distance shifts about 2%.
+- **B73 Arena pose.** Legs start from the tracked trace at 180 angles, as `leg_from` uses, so the
+  arena and the GA agree on which legs jam; a jammed leg is refused with the GA's plain reason.
+- **B74 Pyodide's wheels.** The cffi and pycparser wheels that match `pyodide-lock.json` exist only
+  in Pyodide's GitHub release tarball (PyPI has no cffi for this platform, and jsDelivr is
+  blocked), so `vendor.py` streams that tarball and stops after about 170 MB, about 18 s the first
+  time (B14).
+- **B75 Arena tab loading.** pymunk loads the first time the tab opens, with "Loading the physics
+  engine…"; if it fails a plain message appears, the other tabs keep working, and opening the tab
+  again tries again.
+- **B76 Arena beest.** Jansen's leg, the Leg tab's current leg, or Evolve's best (handed over each
+  time Evolve shows a new one, after its own panel; an error there is logged and Evolve carries
+  on), on 1–4 pairs with even phases; an evolved layout keeps its phases while Pairs is its own
+  number. Opening the tab stands up a changed leg or best unless the beest on show has started;
+  otherwise, and whenever a best arrives while the tab is on show, the arena keeps the old one and
+  says to press Reset, so Evolve's generations never rebuild it or stop a walk. A best other than
+  the one on show (in lengths or layout) brings its own number of pairs, unless Pairs itself was
+  changed. A beest that fails to build for any reason but a jam gets a plain message, and the fault
+  is logged.
+- **B77 Arena timing.** The crank runs in real time at one turn a second; a slow frame advances at
+  most 0.1 s (`MAX_FRAME_S`), so a slow device runs slower rather than jumping. Pyodide manages
+  17,000–20,000 steps a second for 3 pairs, so a 60 fps frame of 10 steps takes under 1 ms.
+  Distance per turn shows once a whole turn is done.
+- **B78 Arena view** follows the axle, with distance markers every 100 mm; the other pairs are
+  drawn faint behind the phase-0 pair, and the chassis turns red once the beest has tipped.
+
 ## Questions for Al
 
 Append questions here as they arise, most important first, each with what it blocks and the
@@ -394,6 +435,9 @@ provisional answer the build went ahead with.
   tolerance of the lowest foot (B67). At 1 mm that tips 95% of random working legs within ±25% of
   Jansen's, and Jansen's own 2-pair beest tips at 0.65 mm and below, though the arena spike walked a
   2-pair beest. Is this the right check? Blocks nothing. Built on the plan's check.
+- **Arena tipping.** The arena counts a beest as fallen over once its chassis leans more than 30°
+  or touches the ground (B70). Is 30° right, and should a beest resting on its chassis count as
+  fallen over? Blocks nothing. Built on yes to both.
 
 ## Slide edits for Al
 
