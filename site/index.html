@@ -155,6 +155,21 @@
             <p class="hint">Each pair is a leg and its mirror image on one throw of the crank. The
               throws are spread evenly round the crank.</p>
           </fieldset>
+          <fieldset id="arena-races">
+            <legend>Race</legend>
+            <div class="choice">
+              <label for="arena-race">Course</label>
+              <select id="arena-race" disabled>
+                <option value="walk" selected>Just walk</option>
+                <option value="distance">Distance in 10 turns</option>
+                <option value="pencils">Over the pencils</option>
+                <option value="towel">Across the towel</option>
+              </select>
+            </div>
+            <p class="hint">The distance race lasts 10 turns. The pencils and the towel are crossed
+              once every foot is past the far side, and a beest still not across after 20 turns
+              gives up. A beest that falls over is out.</p>
+          </fieldset>
           <div class="buttons">
             <button type="button" id="arena-start" disabled>Start</button>
             <button type="button" id="arena-reset" disabled>Reset</button>
@@ -169,6 +184,7 @@
                 <tr><th scope="row">Distance walked</th><td id="arena-travel"></td></tr>
                 <tr><th scope="row">Distance per turn</th><td id="arena-distance"></td></tr>
                 <tr><th scope="row">Still upright</th><td id="arena-upright"></td></tr>
+                <tr><th scope="row">Race</th><td id="arena-race-result"></td></tr>
               </tbody>
             </table>
           </div>

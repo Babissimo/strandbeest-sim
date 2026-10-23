@@ -186,6 +186,15 @@ class View:
         self._stroke(None, colour, 1.5)
         ctx.setLineDash(window.Array.new())
 
+    def disc(self, centre: Point, radius: float, colour: str) -> None:
+        """A filled circle of `radius` mm, such as a pencil end on."""
+        ctx = self.ctx
+        x, y = self.px(centre)
+        ctx.beginPath()
+        ctx.arc(x, y, max(radius * self.scale, 0.0), 0, 2 * math.pi)
+        ctx.fillStyle = colour
+        ctx.fill()
+
     def band(self, y0: float, y1: float, colour: str = BAND) -> None:
         """A shaded strip across the whole canvas between two heights in mm."""
         top, bottom = self.px((0, max(y0, y1)))[1], self.px((0, min(y0, y1)))[1]

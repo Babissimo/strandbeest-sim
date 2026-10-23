@@ -5,7 +5,8 @@ page starts without waiting for it, and the other tabs work even if it cannot lo
 element shows `data-status` (loading, ready, running or error), `data-beest`, `data-pairs`,
 `data-jammed` (a beest that cannot be built leaves the status ready, with nothing to start),
 `data-turns`, `data-travel` (mm walked left), `data-distance-per-turn` (empty until a whole turn
-is done) and `data-tipped`.
+is done) and `data-tipped`. In a race it also shows `data-race`, and once the race is decided,
+`data-outcome` (finished, fell or gave-up) and `data-race-turns`.
 """
 from __future__ import annotations
 
@@ -27,6 +28,10 @@ from beest.leg import Layout, jansen_lengths
 WHEEL = "./vendor/pyodide/pymunk-7.3.1-cp314-cp314-pyemscripten_2026_0_wasm32.whl"
 # The choices in #arena-beest.
 JANSEN, PLAYGROUND, EVOLVED = "jansen", "leg", "evolved"
+# The choice in #arena-race that is no race; the others are beest.arena's RACES.
+WALK = "walk"
+PENCIL = "#e8b10a"
+TOWEL = "#0c8599"
 # Distance per turn is shown once this many turns are done; before then the start-up dominates it.
 SETTLED_TURNS = 1
 # The view follows the axle and shows this many times the beest's reach either side of it.
@@ -76,12 +81,15 @@ class ArenaMode:
         self.pairs = root.querySelector("#arena-pairs")
         self.start = root.querySelector("#arena-start")
         self.reset = root.querySelector("#arena-reset")
+        self.course = root.querySelector("#arena-race")
         self.cells = {name: root.querySelector(f"#arena-{name}")
-                      for name in ("turns", "travel", "distance", "upright")}
+                      for name in ("turns", "travel", "distance", "upright", "race-result")}
         self.view = draw.View(root.querySelector("canvas"), self.resized)
         # beest.arena, once pymunk has loaded.
         self.physics = None
         self.arena = None
+        # The race the arena belongs to, when one was chosen.
+        self.race = None
         # The beest on show, as chosen_beest() gave it, and what is wrong with it, if anything.
         self.beest: tuple[list[float], Layout | None] | None = None
         self.problem = ""
@@ -100,7 +108,8 @@ class ArenaMode:
                          listen(self.start, "click", self.toggle),
                          listen(self.reset, "click", self.rebuild),
                          listen(self.choice, "change", self.rebuild),
-                         listen(self.pairs, "change", self.adjusted)]
+                         listen(self.pairs, "change", self.adjusted),
+                         listen(self.course, "change", self.adjusted)]
         self.opened(None)
 
     def offer_evolved(self, genes: list[float], layout: Layout) -> None:
@@ -170,7 +179,8 @@ class ArenaMode:
             self._loader = None
             return
         self.physics = physics
-        self.choice.disabled = self.pairs.disabled = self.reset.disabled = False
+        for control in (self.choice, self.pairs, self.course, self.reset):
+            control.disabled = False
         self.rebuild(None)
 
     def chosen_beest(self) -> tuple[list[float], Layout | None] | None:
@@ -191,7 +201,8 @@ class ArenaMode:
         return layout if layout is not None and layout.pairs == pairs else Layout(pairs)
 
     def adjusted(self, event) -> None:
-        """Pairs was changed: the number chosen stands, even for a best from Evolve."""
+        """Pairs or the race was changed: the number of pairs shown stands, even for a best from
+        Evolve."""
         self.rebuild(event, keep_pairs=True)
 
     def rebuild(self, event, keep_pairs: bool = False) -> None:
@@ -203,31 +214,39 @@ class ArenaMode:
         if self.physics is None:
             return
         self.stop()
-        self.arena = None
+        self.arena = self.race = None
         beest = self.chosen_beest()
         new_best = self.choice.value == EVOLVED and beest is not None and beest != self.beest
         if new_best and not keep_pairs:
             self.pairs.value = str(beest[1].pairs)
         self.beest = beest
         layout = self.chosen_layout()
+        course = self.course.value
         self.mirror("beest", self.choice.value)
         self.mirror("pairs", str(layout.pairs))
+        self.mirror("race", course)
         self.problem = ""
         if beest is None:
             self.problem = "There is no such beest yet."
         else:
             try:
-                self.arena = self.physics.Arena(beest[0], layout)
+                if course == WALK:
+                    self.arena = self.physics.Arena(beest[0], layout)
+                else:
+                    self.race = self.physics.Race(beest[0], layout, course)
+                    self.arena = self.race.arena
             except ValueError as error:
                 self.problem = f"{sentence(error)} It cannot walk."
             except Exception:
+                self.arena = self.race = None
                 self.problem = FAULT
                 self.mirror("status", "error")
                 window.console.error(
                     f"The arena could not stand the beest up.\n{traceback.format_exc()}")
         self.mirror("jammed", str(self.arena is None).lower())
         self.say(self.problem)
-        self.start.disabled = self.arena is None
+        # A beest can fall over before its race starts.
+        self.start.disabled = self.arena is None or (self.race is not None and self.race.done)
         if self.arena is not None:
             self.fit_to_beest()
         self.show()
@@ -280,7 +299,7 @@ class ArenaMode:
             steps = int(self._owed)
             self._owed -= steps
             try:
-                self.arena.step(steps)
+                (self.arena if self.race is None else self.race).step(steps)
             except Exception:
                 self.stop()
                 self.start.disabled = True
@@ -288,6 +307,9 @@ class ArenaMode:
                 self.problem = FAULT
                 self.say(FAULT)
                 raise
+            if self.race is not None and self.race.done:
+                self.stop()
+                self.start.disabled = True
         self._last_time = now if self.running else None
         self.show()
         if self.running:
@@ -297,7 +319,7 @@ class ArenaMode:
         """Updates the numbers and draws the beest as it is now."""
         arena = self.arena
         if arena is None:
-            for name in ("turns", "travel", "distance-per-turn", "tipped"):
+            for name in ("turns", "travel", "distance-per-turn", "tipped", "outcome", "race-turns"):
                 self.mirror(name, "")
             for cell in self.cells.values():
                 cell.textContent = ""
@@ -314,16 +336,22 @@ class ArenaMode:
         self.cells["travel"].textContent = minus(f"{result.travel:.0f} mm")
         self.cells["distance"].textContent = (minus(f"{result.distance:.1f} mm") if settled
                                               else "after the first turn")
-        if not result.tipped:
-            upright = "Yes"
-        elif result.tipped_at == 0:
-            upright = "No: it fell over before the crank started"
-        elif result.tipped_at < 0.05:
-            upright = "No: it fell over as the crank started"
-        else:
-            upright = f"No: it fell over after {result.tipped_at:.1f} turns"
-        self.cells["upright"].textContent = upright
+        self.cells["upright"].textContent = (
+            f"No: it fell over {self.physics.fell(result.tipped_at)}" if result.tipped else "Yes")
+        self.show_race()
         self.draw(result.tipped)
+
+    def show_race(self) -> None:
+        race = None if self.race is None else self.race.result
+        self.mirror("outcome", "" if race is None else race.outcome.replace(" ", "-"))
+        self.mirror("race-turns", "" if race is None else str(round(race.turns, 3)))
+        if self.race is None:
+            text = "No race: it just walks"
+        elif race is not None:
+            text = race.message
+        else:
+            text = "Under way" if self.walked else "Press Start to begin"
+        self.cells["race-result"].textContent = text
 
     def draw(self, tipped: bool) -> None:
         view = self.view
@@ -337,6 +365,7 @@ class ArenaMode:
         # The box is centred on the axle, and the canvas may be wider than it.
         half = view.mm(view.width / 2)
         self.draw_ground(x - half, x + half)
+        self.draw_course()
         view.arrow((x, self.top + view.mm(ARROW_ROOM_PX / 2)), (-1.0, 0.0),
                    "The beest walks this way")
         legs = self.arena.legs()
@@ -379,6 +408,22 @@ class ArenaMode:
             view.path([(mark, 0.0), (mark, -view.mm(6))], colour=draw.INK, width=1.5)
             labels.append(((mark, -view.mm(15)), "start" if k == 0 else minus(f"{k * MARK_MM} mm")))
         view.labels(labels, draw.MUTED)
+
+    def draw_course(self) -> None:
+        """The pencils or the towel, and the line every foot has to pass."""
+        view = self.view
+        course = self.arena.course
+        if course.towel is not None:
+            left, right = course.towel
+            view.plate([*course.surface, (left, 0.0), (right, 0.0)], TOWEL)
+            view.path(course.surface, colour=TOWEL, width=2)
+        for centre in course.pencils:
+            view.disc(centre, self.physics.PENCIL_DIAMETER_MM / 2, PENCIL)
+        if course.finish_x is not None:
+            flag = self.top * 0.6
+            view.path([(course.finish_x, 0.0), (course.finish_x, flag)], colour=draw.INK,
+                      width=1.5)
+            view.text((course.finish_x, flag + view.mm(10)), "finish", draw.INK)
 
     def mirror(self, name: str, value: str) -> None:
         if self._shown.get(name) != value:
