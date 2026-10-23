@@ -381,15 +381,32 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   number. Opening the tab stands up a changed leg or best unless the beest on show has started;
   otherwise, and whenever a best arrives while the tab is on show, the arena keeps the old one and
   says to press Reset, so Evolve's generations never rebuild it or stop a walk. A best other than
-  the one on show (in lengths or layout) brings its own number of pairs, unless Pairs itself was
-  changed. A beest that fails to build for any reason but a jam gets a plain message, and the fault
-  is logged.
+  the one on show (in lengths or layout) brings its own number of pairs, unless Pairs or the race
+  was changed. A beest that fails to build for any reason but a jam gets a plain message, and the
+  fault is logged.
 - **B77 Arena timing.** The crank runs in real time at one turn a second; a slow frame advances at
   most 0.1 s (`MAX_FRAME_S`), so a slow device runs slower rather than jumping. Pyodide manages
   17,000–20,000 steps a second for 3 pairs, so a 60 fps frame of 10 steps takes under 1 ms.
   Distance per turn shows once a whole turn is done.
 - **B78 Arena view** follows the axle, with distance markers every 100 mm; the other pairs are
   drawn faint behind the phase-0 pair, and the chassis turns red once the beest has tipped.
+
+- **B79 Courses** start 20 mm ahead of the beest's frontmost part and run towards −x
+  (`RUN_UP_MM`).
+- **B80 Pencils.** 8 pencils (`PENCIL_COUNT`) with friction 0.3 (`PENCIL_FRICTION`), as painted
+  wood. At friction 1.0 a caught foot lets the constant-speed crank lever Jansen's 3-pair beest over
+  backwards, in all 20 runs tried.
+- **B81 Towel.** 500 mm long (`TOWEL_LENGTH_MM`) with friction 1.5; its surface is a smooth cosine
+  2 mm high every 10 mm (steepest slope 32°), because half-round bumps tipped Jansen's 3-pair beest
+  in 6 of 20 runs, while on the smooth surface 3 and 4 pairs finished 50 runs of 50.
+- **B82 Finishing.** A beest is across once every foot is past the last pencil or the towel's far
+  end, checked every 10 physics steps (`CHECK_STEPS`). The distance race lasts 10 turns on flat
+  ground; the others give up after 20 turns (`MAX_RACE_TURNS`). Touching a pencil or the towel with
+  the chassis counts as falling over.
+- **B83 Races run in real time** in the page: about 4 s for the pencils, 4.5 s for the towel and
+  10 s for distance. Jansen's beest falls over in every race on 1 pair, and on the pencils and the
+  towel on 2; on 3 pairs it crosses the pencils in 3.85 turns and the towel in 4.25, in the browser
+  as under CPython.
 
 ## Questions for Al
 
@@ -438,6 +455,11 @@ provisional answer the build went ahead with.
 - **Arena tipping.** The arena counts a beest as fallen over once its chassis leans more than 30°
   or touches the ground (B70). Is 30° right, and should a beest resting on its chassis count as
   fallen over? Blocks nothing. Built on yes to both.
+- **Crank under load.** The arena's crank keeps its speed whatever the load (Q2), so a caught foot
+  can lever a beest over; that is why the pencils' friction and the towel's shape are as B80 and
+  B81 give them. Should it stall like a real motor instead? Blocks nothing. Built on constant speed.
+- **Race courses.** Do 8 pencils, a 500 mm towel, a 20 mm run-up and giving up after 20 turns
+  (B79–B82) match the real races? Blocks nothing. Built on those values.
 
 ## Slide edits for Al
 
