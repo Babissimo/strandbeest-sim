@@ -449,6 +449,17 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   and the panel's jam margin when the start or the margin is chosen, when the tab is shown and
   when Run is pressed, and warns in words if it jams (`data-design-jams`); the run still goes
   ahead.
+- **B92 The whole generation.** Below the best beests a grid shows every beest the generation
+  tried (the GA's population, hill climbing's parent and child, random search's newcomers), best
+  first with its score, all at one scale so their sizes compare. They turn with the best beests'
+  crank and Play button, traced at 90 angles a turn (`POPULATION_ANGLES`, or the GA's 180 when the
+  two samplings disagree on a jam); a beest that jams is grey, still at 0° and labelled "jams".
+- **B93 Grid timing.** Each report carries the generation's lengths to 0.01 mm
+  (`POPULATION_DECIMALS`), about 5 KB for 30 beests. The page traces about 4 ms of beests a frame
+  (`TRACE_BUDGET_S`), takes a new generation at most once a second during a run
+  (`POPULATION_EVERY_S`) and always the last, and turns each leg position into canvas path data
+  once per layout. In a default run in the cloud session frames stay at 16.7 ms median and 33 ms at
+  the 95th percentile (16.7 ms without the grid).
 
 ## Questions for Al
 

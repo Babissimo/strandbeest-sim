@@ -4,12 +4,14 @@ The GA runs in a PyScript worker (app/ga_worker.py), so the page stays responsiv
 starts the first time the mode is on screen. Stop terminates it and starts a fresh one, which
 also ends code that never returns; so does a run of the editor's code, or a worker that fails.
 Two beests are shown side by side, the best of the latest generation and the best of the whole
-run so far, turned by one crank; the template and the arena take the run's best.
+run so far, with every beest of a recent generation below them, all turned by one crank; the
+template and the arena take the run's best.
 The root element mirrors the mode's state in `data-*` attributes: status (starting, ready,
 running or error), generation and evaluations (of the latest report in the run), best-score,
 winner-turns and winner-fits (the latest generation's best), run-best-score,
 run-best-generation, run-winner-turns and run-winner-fits (the run's best), same-best (whether
-they are one beest), the crank's playing, angle and drawn-to, series (runs on the graph), points
+they are one beest), population and population-generation (the beests in the grid and their
+generation), the crank's playing, angle and drawn-to, series (runs on the graph), points
 (in the latest run), graph-view, axis (the score axis's title), route (settings or code),
 design-jams (while the start is the Leg tab's design) and, when a run fails, error and, for an
 error in the editor's code with a line, error-line.
@@ -33,6 +35,7 @@ from app.controls import Animator, listen
 from app.editor import CodePanel
 from app.graph import MAX_SERIES, Graph, label, reading, short, title
 from app.leg_mode import TOLERANCE_BOUNDS
+from app.population import PopulationGrid
 from app.printing import TemplateButtons
 from app.storage import keep, recall
 from beest import ga
@@ -48,6 +51,9 @@ PYODIDE = "./vendor/pyodide/pyodide.mjs"
 WORKER_START_S = 90
 # During a run the best beests are drawn again at most this often.
 BEST_EVERY_MS = 250
+# During a run the grid takes a new generation at most this often, in s; tracing one takes a good
+# part of the spare time in that many frames. A run's last generation is always shown.
+POPULATION_EVERY_S = 1.0
 # The crank angles every beest picture shares: one turn, round and round.
 CRANK_TURN = [2 * math.pi * k / DRAW_ANGLES for k in range(DRAW_ANGLES)]
 # The two best beests on show, by the start of their fields' names in a report.
@@ -551,6 +557,8 @@ class EvolveMode:
         self._best_shown = False
         # When the best beests were last drawn, in ms on the animation clock.
         self._best_drawn = -math.inf
+        # When the grid was last offered a generation, in s.
+        self._population_offered = -math.inf
         # What the status line last said about a run.
         self._said = ""
         # The error on show, and whether it is in the editor's code.
@@ -582,6 +590,9 @@ class EvolveMode:
         self.pictures = {kind: BeestPicture(column.querySelector(".ev-beest"),
                                             self._pictures_resized, "The best beest appears here.")
                          for kind, column in self.columns.items()}
+        self.population = PopulationGrid(root.querySelector(".ev-population"),
+                                         self._pictures_resized)
+        self.population_hint = root.querySelector(".ev-population-hint")
         # One crank turns every picture, so they keep in step; it starts once there is a best.
         self.animator = Animator(root, self._draw_beests)
         # Disabled until a run has a best beest to print.
@@ -719,6 +730,7 @@ class EvolveMode:
         self._show_runs()
         self._show_progress(run, ended)
         self._show_best()
+        self._offer_population(at_once=True)
         self._schedule()
 
     def _give_back(self, run: Run, ended: str) -> None:
@@ -899,6 +911,7 @@ class EvolveMode:
             self.animator.redraw()
         else:
             self.animator.load(CRANK_TURN, DRAW_ANGLES, loops=True)
+        self._offer_population()
         if self.on_best is not None:
             # The panel is already shown; an error in the receiver goes no further than the console.
             try:
@@ -913,10 +926,35 @@ class EvolveMode:
         return leg_template_svg(top["genes"], layout_of(top))
 
     def _draw_beests(self, index: int | None) -> bool:
-        """Draws both best beests with the crank at this step of its turn."""
+        """Draws both best beests and the generation's grid with the crank at this step of its
+        turn."""
         theta = 0.0 if index is None else CRANK_TURN[index]
         drew = [picture.draw(theta) for picture in self.pictures.values()]
+        drew.append(self.population.draw(theta))
         return any(drew)
+
+    def _offer_population(self, at_once: bool = False) -> None:
+        """Gives the grid the generation whose bests are on show; during a run, only so often."""
+        report, run = self.shown_best, self.best_run
+        now = time.monotonic()
+        if report is None or not at_once and now - self._population_offered < POPULATION_EVERY_S:
+            return
+        self._population_offered = now
+        # The key names the generation and says what the grid's hint needs about its run.
+        key = (id(run), report["generation"], run.series.label, run.settings.preset)
+        self.population.offer(key, report["population"], run.settings.margin)
+
+    def _show_population(self) -> None:
+        """A newly traced generation has gone on show in the grid."""
+        grid = self.population
+        _, generation, name, preset = grid.key
+        self._mirror("population", str(len(grid.shown)))
+        self._mirror("population-generation", str(generation))
+        tried = "parent and child" if preset == "hill" else "every beest"
+        self.population_hint.textContent = (
+            f"{name}, generation {generation}: {tried}, best first, with each one's score. A "
+            f"grey beest jams, so it stays still. Play turns them with the best beests.")
+        self.animator.redraw()
 
     def _pictures_resized(self) -> None:
         self.animator.draw_now()
@@ -949,6 +987,12 @@ class EvolveMode:
                 self._show_best()
                 self._best_drawn = now
             else:
+                self._schedule()
+        if self.population.busy:
+            # The grid traces a few beests each frame, so frames stay short.
+            if self.population.work():
+                self._show_population()
+            if self.population.busy:
                 self._schedule()
         self.readout.textContent = "\n".join(self.graph.readout())
 
@@ -1054,5 +1098,12 @@ STAGE_HTML = """
   <p class="hint">The leg template is for the best beest of the whole run so far, and so is
     "The best from Evolve" in the Arena tab.</p>
   <div class="template ev-template"></div>
+</div>
+<div class="panel population-panel">
+  <h3>The whole generation</h3>
+  <p class="hint ev-population-hint">Press Run and every beest of each generation appears here,
+    best first.</p>
+  <canvas class="ev-population" role="img" hidden
+    aria-label="Every beest of the generation, best first, each with its score"></canvas>
 </div>
 """

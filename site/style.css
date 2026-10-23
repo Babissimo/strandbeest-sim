@@ -661,6 +661,12 @@ table.ingredients tbody th {
   background: var(--wash);
 }
 
+/* The grid sets its own height, one row of cells at a time. */
+#evolve-mode .stage canvas.ev-population {
+  min-height: 0;
+  aspect-ratio: auto;
+}
+
 .ev-legend {
   display: flex;
   flex-wrap: wrap;

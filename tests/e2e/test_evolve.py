@@ -95,6 +95,12 @@ def test_default_run_completes(evolve: Page) -> None:
     expect(root).not_to_have_attribute("data-angle", "0")
     expect(evolve.locator(".ev-legend")).to_contain_text("Run 1: GA, seed 1")
     expect(evolve.locator(".ev-progress")).to_contain_text("Finished: 40 generations")
+    # The grid shows the last generation, every beest of it.
+    expect(root).to_have_attribute("data-population", str(ga.POP_SIZE))
+    expect(root).to_have_attribute("data-population-generation", str(ga.GENERATIONS - 1))
+    expect(evolve.locator(".ev-population")).to_be_visible()
+    expect(evolve.locator(".ev-population-hint")).to_contain_text(
+        f"Run 1: GA, seed 1, generation {ga.GENERATIONS - 1}: every beest, best first")
 
 
 def test_stop_halts_run(evolve: Page) -> None:
@@ -104,10 +110,13 @@ def test_stop_halts_run(evolve: Page) -> None:
     expect(root).to_have_attribute("data-status", "running")
     expect(root).to_have_attribute("data-generation", re.compile(r"^([3-9]|\d\d+)$"),
                                    timeout=RUN_TIMEOUT_MS)
-    # The page keeps drawing while the worker runs.
+    # The page keeps drawing while the worker runs, and the grid takes up later generations.
     root.get_by_role("button", name="Play").click()
     angle = root.get_attribute("data-angle")
     expect(root).not_to_have_attribute("data-angle", angle)
+    expect(root).to_have_attribute("data-population-generation", re.compile(r"^\d+$"))
+    shown = root.get_attribute("data-population-generation")
+    expect(root).not_to_have_attribute("data-population-generation", shown)
     expect(root).to_have_attribute("data-status", "running")
     evolve.get_by_role("button", name="Stop", exact=True).click()
     expect(root).to_have_attribute("data-status", "ready", timeout=10_000)
@@ -132,11 +141,15 @@ def test_presets_overlay(evolve: Page) -> None:
     evolve.locator("#ev-preset").select_option("ga")
     expect(by_budget).to_be_checked()
     budget = 300
-    for preset in ("random", "hill", "ga"):
+    # The grid shows each search's last generation: hill climbing's parent and child.
+    for preset, population in (("random", ga.POP_SIZE), ("hill", 2), ("ga", ga.POP_SIZE)):
         evolve.locator("#ev-preset").select_option(preset)
         stop_after(evolve, "budget", budget)
         run_and_wait(evolve)
         assert number(evolve, "evaluations") == budget
+        expect(mode(evolve)).to_have_attribute("data-population", str(population))
+        expect(mode(evolve)).to_have_attribute("data-population-generation",
+                                               mode(evolve).get_attribute("data-generation"))
     expect(mode(evolve)).to_have_attribute("data-series", "3")
     legend = evolve.locator(".ev-legend li")
     expect(legend).to_have_text([

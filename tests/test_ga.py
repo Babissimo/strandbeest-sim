@@ -316,6 +316,48 @@ def test_random_search_draws_as_it_starts():
     assert all(genes == jansen_lengths() for genes in calls)
 
 
+def test_report_carries_the_generation():
+    def distance(leg):
+        return leg.distance
+
+    seen = reports(ga.RunSettings(seed=3, **SMALL), distance)
+    for report in seen:
+        assert len(report.population) == SMALL["pop"]
+        for member in report.population:
+            leg = leg_from(member.genes, member.layout)
+            assert (member.score, member.jams) == (leg.distance, leg.jams)
+        assert max(m.score for m in report.population) == report.best_score
+        assert report.mean_score == pytest.approx(
+            sum(m.score for m in report.population) / SMALL["pop"])
+
+
+def test_hill_climbing_reports_parent_and_child():
+    seen = reports(ga.RunSettings(preset="hill", seed=5, **SMALL), lambda leg: leg.distance)
+    assert len(seen[0].population) == 1
+    for before, report in zip(seen, seen[1:]):
+        parent, child = report.population
+        assert (parent.genes, parent.score) == (before.best_genes, before.best_score)
+        assert report.best_score == max(parent.score, child.score)
+
+
+def test_random_search_reports_its_newcomers():
+    relative = FitnessSettings(normalisation="generation")
+    for fitness in (FitnessSettings(), relative):
+        seen = reports(ga.RunSettings(preset="random", fitness=fitness, **SMALL))
+        assert all(len(report.population) == SMALL["pop"] for report in seen)
+
+
+def test_plain_population_is_small():
+    final = ga.run(ga.RunSettings(generations=1))
+    plain = final.as_dict()["population"]
+    assert len(plain) == ga.POP_SIZE
+    for member, beest in zip(plain, final.population):
+        assert member["genes"] == [round(x, ga.POPULATION_DECIMALS) for x in beest.genes]
+        assert member["phases"] == list(beest.layout.phases)
+        assert (member["score"], member["jams"]) == (beest.score, beest.jams)
+    assert len(json.dumps(plain)) < 6000
+
+
 def test_run_best_keeps_a_beest_the_ga_lost():
     # Without elites the GA's best in generation 0 is not carried on, and later ones score lower.
     seen = reports(ga.RunSettings(elite=0, seed=2, **SMALL))
