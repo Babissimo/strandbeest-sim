@@ -398,7 +398,8 @@ def test_report_is_plain():
     plain = final.as_dict()
     assert json.loads(json.dumps(plain)) == plain
     assert plain["best_layout"] == {"pairs": 3, "phases": [0.0, 120.0, 240.0]}
-    assert set(plain["best_values"]) == {"distance", "stride", "step_height", "time_down", "flatness"}
+    assert set(plain["best_values"]) == {"distance", "stride", "step_height", "time_down", "flatness",
+                                         "upright"}
 
 
 @pytest.mark.parametrize("bad", [{"preset": "annealing"}, {"crossover": "swap"},

@@ -183,14 +183,15 @@ def test_nearest_point():
 
 
 def test_ingredients_follow_the_engine(monkeypatch):
-    monkeypatch.setattr(graph, "INGREDIENTS", {**INGREDIENTS, "upright": True})
+    monkeypatch.setattr(graph, "INGREDIENTS", {**INGREDIENTS, "grip": True})
     one = report(30, 1.0, 0.5) | {"best_values": {name: 2.0 for name in graph.INGREDIENTS}}
     g, numbers, paths = drawn([[one, one]], "ingredients")
     assert_finite(numbers, paths)
     assert len(g._plots) == len(INGREDIENTS) + 1
+    assert graph.label("grip") == "Grip"
     assert graph.label("upright") == "Upright"
     assert graph.label("step_height") == "Step height (mm)"
     assert graph.reading("upright", 1.0) == "1.00"
     assert graph.reading("stride", 57.42) == "57.4 mm"
     g.hover = (g._plots[-1][0].left, g._plots[-1][0].top)
-    assert g.readout()[0].endswith("time down 2.00, flatness 2.00 mm, upright 2.00")
+    assert g.readout()[0].endswith("flatness 2.00 mm, upright 2.00, grip 2.00")

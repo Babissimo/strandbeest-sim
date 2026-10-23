@@ -6,7 +6,7 @@ import pytest
 from playwright.sync_api import Page, expect
 
 from beest import ga
-from beest.fitness import FitnessSettings, fixed_limits
+from beest.fitness import INGREDIENTS, FitnessSettings, fixed_limits
 
 pytestmark = pytest.mark.e2e
 
@@ -165,7 +165,7 @@ def test_settings_error_is_shown_beside_run(evolve: Page) -> None:
 def test_all_zero_scores_draw(evolve: Page) -> None:
     # Every weight 0 scores every beest 0, under each normalisation.
     evolve.locator("details", has_text="Fitness").locator("summary").click()
-    for name in ("distance", "stride", "step_height", "time_down", "flatness"):
+    for name in INGREDIENTS:
         evolve.locator(f"#ev-w-{name}").fill("0")
     stop_after(evolve, "generations", 3)
     for normalisation in ("jansen", "limits", "generation"):
@@ -176,6 +176,7 @@ def test_all_zero_scores_draw(evolve: Page) -> None:
     expect(mode(evolve)).to_have_attribute("data-graph-view", "ingredients")
     evolve.locator(".ev-graph").hover(position={"x": 100, "y": 60})
     expect(evolve.locator(".ev-readout")).to_contain_text("Run 3: GA, seed 1 after")
+    expect(evolve.locator(".ev-readout")).to_contain_text("upright")
 
 
 def test_relative_axis_label(evolve: Page) -> None:
