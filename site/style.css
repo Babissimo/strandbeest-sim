@@ -1,0 +1,138 @@
+:root {
+  --ink: #1d232a;
+  --muted: #59636e;
+  --line: #d5dbe1;
+  --panel: #ffffff;
+  --wash: #f3f5f7;
+  --accent: #1f5fbf;
+  --ok: #1a7f37;
+  --wait: #8a5a00;
+  --bad: #c62828;
+  --radius: 8px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--wash);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Sections set their own display; hidden must still win. */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 1280px;
+  padding: 0 1.25rem 2rem;
+}
+
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tabs a {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.tabs a:hover {
+  background: var(--line);
+}
+
+.tabs a[aria-current="page"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.status {
+  margin: 0 0 0 auto;
+  font-size: 0.9rem;
+  color: var(--wait);
+}
+
+.status[data-status="ready"] {
+  color: var(--ok);
+}
+
+.status[data-status="error"] {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+.intro h2 {
+  margin: 1.25rem 0 0.25rem;
+  font-size: 1.2rem;
+}
+
+.intro p {
+  margin: 0 0 1rem;
+  max-width: 70ch;
+  color: var(--muted);
+}
+
+/* Settings on the left, the drawing on the right; stacked on narrow screens. */
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.controls,
+.stage {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  min-height: 8rem;
+}
+
+.stage {
+  position: relative;
+  min-height: 28rem;
+  overflow: hidden;
+}
+
+.stage canvas {
+  display: block;
+  width: 100%;
+}
+
+@media (max-width: 800px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .status {
+    margin-left: 0;
+  }
+}
