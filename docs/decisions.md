@@ -18,7 +18,8 @@ offered as an ingredient. The arena (stretch) tests and races evolved beests and
 Flat ground first. Pencils are fixed circles 7.5 mm in diameter at 40 mm spacing. The towel is ground
 with friction 1.5 and 2 mm bumps every 10 mm. Chassis 30 g, each stick 1 g, constant-speed crank at
 one turn per second, 600 physics steps per turn. Draw every leg, the phase-0 pair darker. Start from
-`docs/spikes/pymunk_beest.py`, which already walks.
+`docs/spikes/pymunk_beest.py`, which already walks. The crank keeps its speed whatever the load and
+never stalls. Confirmed by Al.
 
 ### Q3 Physics library: confirmed by measurement
 pymunk 7.3.1 (WebAssembly wheel from PyPI, cffi from Pyodide). Arena only.
@@ -66,8 +67,9 @@ vendored the same way when the arena is built.
 As the brief's §5, in the order of the plan's tasks.
 
 ### Q12 Hosting: provisional
-Nothing deploys yet. `site/` is plain static files with no build step, so either host in the brief's
-§7 can serve it; it includes a `_headers` file for Cloudflare. The repo is `Babissimo/strandbeest-sim`
+The page will live at strandbeests.babissimo.net (Al); the host is still to be settled. Nothing
+deploys yet. `site/` is plain static files with no build step, so either host in the brief's §7 can
+serve it; it includes a `_headers` file for Cloudflare. The repo is `Babissimo/strandbeest-sim`
 (private) until Al names it.
 
 ### Q13 Devices: provisional
@@ -107,12 +109,13 @@ The graph plots best and average score per generation. Under per-generation norm
 labelled "relative to this generation". A second view plots the best beest's raw ingredients per
 generation. Flipped scores under normalisation 1 can go negative and are shown as they are.
 
-### Q19 Template: provisional
-A4 portrait at 1:1 mm. Each stick is drawn on its own at true length with hole centres marked, 5 mm
-end margins, its letter, its hole-to-hole length and how many to cut for the chosen number of pairs.
-The chassis holes (O, G, and the mirrored G) form a separate drilling diagram. A 100 mm calibration
-bar says "check with a ruler". Printed through a print stylesheet, with an SVG download too. The
-four-bar mode prints its four sticks the same way.
+### Q19 Template: changed
+Students will not print templates, but the template stays in the simulator. It is A4 portrait at
+1:1 mm. Each stick is drawn on its own at true length with hole centres marked, 5 mm end margins,
+its letter, its hole-to-hole length and how many to cut for the chosen number of pairs. The chassis
+holes (O, G, and the mirrored G) form a separate drilling diagram. A 100 mm calibration bar says
+"check with a ruler". Printed through a print stylesheet, with an SVG download too. The four-bar
+mode prints its four sticks the same way. Changed by Al.
 
 ### Q20 numpy: provisional
 No. The core is pure Python, readable by students and with nothing to download.
@@ -245,7 +248,7 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B35 Hill climbing** keeps the child on a tie, so a jammed start can drift.
 - **B36 The report's best** is the beest the search keeps (the GA's best this generation, hill
   climbing's parent, random search's best so far); it also carries `best_jams` and `best_fits` for
-  the winner checks.
+  the winner checks, and the run's best beside it (B85).
 - **B37 Scores** must be finite real numbers; True and False are refused as slips
   (`return leg.jams`). `mutate` must return 13 finite numbers; the engine does not clamp them, and
   `fits` shows when they break the stick bounds.
@@ -281,10 +284,12 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   dashed, x is "Evaluations (beests scored)". "Relative to this generation" labels the axis when
   every run on the graph uses it, otherwise the legend marks those runs. Hovering shows each run's
   numbers. The ingredients view has one small panel per ingredient, each on its own scale.
-- **B48 Best beest panel** shows the engine's best for the latest generation, labelled with run and
-  generation, drawn with the body still and the ground moving, the 0° pair dark and in front, the
-  arrow pointing left; it redraws at most every 250 ms during a run. `data-generation` counts
-  from 0.
+- **B48 Best beests panel** shows two beests side by side: the engine's best of the latest
+  generation and the best of the whole run so far (B85), each labelled with the run and its
+  generation, with its own numbers and winner checks. When they are the same beest the run's column
+  says so instead of drawing it twice (B86). Each is drawn with the body still and the ground
+  moving, the 0° pair dark and in front, the arrow pointing left, turned by one crank (B87); they
+  redraw at most every 250 ms during a run. `data-generation` counts from 0. Changed by Al.
 - **B49 Throw placement.** `measures.throw_steps` places the crank throws for both the scoring and
   the drawing, so they agree.
 
@@ -308,7 +313,7 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   `leg.normalised` (before flipping), `leg.genes` and `mutate`'s arguments.
 
 - **B56 Stick counts.** Sticks b to k are made 2 per pair (one per leg) and the crank m 1 per pair,
-  since both legs of a pair share a crank tip (`STICKS_PER_PAIR`).
+  since both legs of a pair share a crank tip (`STICKS_PER_PAIR`). Confirmed by Al.
 - **B57 Triangles.** The triangles b–d–e and g–i–h print as three separate sticks each; every label
   names the joints at its holes ("G to J2", `LEG_STICK_ENDS`) in place of a drawing of the
   assembled leg.
@@ -321,7 +326,8 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B60 Chassis diagram** at 1:1, labelled "O (crank axle)", "G" and "G (mirrored leg)" (each label
   pointing away from the other pivot), with a caption giving a and l. When it is wider than the
   page (a about 70 mm or more) it is turned a quarter turn and says so. It gives no count of
-  chassis pieces.
+  chassis pieces: the chassis is made of bamboo skewers and lolly sticks (Al), and nothing more is
+  drawn for it. Confirmed by Al.
 - **B61 Unprintable input** raises ValueError rather than being clipped or shrunk: a stick over
   180 mm, a chassis too big even when turned, a length that is not a positive finite number, or
   other than 13 genes. Anything within the gene bounds prints.
@@ -334,10 +340,10 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B64 Download SVG** saves one standalone A4 SVG per page in one click
   (`strandbeest-leg-template.svg`, or `…-page-1-of-3.svg` for longer templates). Jansen's beest and
   each of 500 random beests fit on one page.
-- **B65 Evolve's template** is the best beest on show, with its number of pairs; its buttons stay
-  disabled until a run has a best. A beest that jams or does not fit can still be printed, since
-  the winner checks already say so. The four-bar's "Print the sticks" and "Download SVG" sit below
-  its playback controls.
+- **B65 Evolve's template** is the best beest of the whole run so far (B85), with its number of
+  pairs, and the panel says so; its buttons stay disabled until a run has a best. A beest that jams
+  or does not fit can still be printed, since the winner checks already say so. The four-bar's
+  "Print the sticks" and "Download SVG" sit below its playback controls. Changed by Al.
 - **B66 Template fonts** list Arimo and Liberation Sans (Arial's widths) before `sans-serif`, since
   text is placed by estimated Arial widths.
 
@@ -355,7 +361,7 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 
 - **B70 Arena tipping.** A beest has tipped once its chassis leans more than 30° from level
   (`TIP_ANGLE_DEG`) or its chassis box touches the ground, checked at every step from the start.
-  Jansen's beest on 1 pair tips 0.27 turns in.
+  Jansen's beest on 1 pair tips 0.27 turns in. Confirmed by Al.
 - **B71 Arena body.** The chassis is a 30 g box round O and both G pivots with a 5 mm margin
   (`CHASSIS_MARGIN_MM`); each triangle (b d e, g h i) is one rigid body of three 1 g sticks; the
   crank is 1 g per throw; feet are circles of 2 mm radius; the parts pass through each other but
@@ -375,15 +381,16 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B75 Arena tab loading.** pymunk loads the first time the tab opens, with "Loading the physics
   engine…"; if it fails a plain message appears, the other tabs keep working, and opening the tab
   again tries again.
-- **B76 Arena beest.** Jansen's leg, the Leg tab's current leg, or Evolve's best (handed over each
-  time Evolve shows a new one, after its own panel; an error there is logged and Evolve carries
-  on), on 1–4 pairs with even phases; an evolved layout keeps its phases while Pairs is its own
-  number. Opening the tab stands up a changed leg or best unless the beest on show has started;
-  otherwise, and whenever a best arrives while the tab is on show, the arena keeps the old one and
-  says to press Reset, so Evolve's generations never rebuild it or stop a walk. A best other than
-  the one on show (in lengths or layout) brings its own number of pairs, unless Pairs or the race
-  was changed. A beest that fails to build for any reason but a jam gets a plain message, and the
-  fault is logged.
+- **B76 Arena beest.** Jansen's leg, the Leg tab's current leg, or the best beest of Evolve's whole
+  run so far (B85; handed over each time Evolve shows its bests, after its own panel, and the
+  arena's hint says so; an error there is logged and Evolve carries on), on 1–4 pairs with even
+  phases; an evolved layout keeps its phases while Pairs is its own number. Opening the tab stands
+  up a changed leg or best unless the beest on show has started; otherwise, and whenever a best
+  arrives while the tab is on show, the arena keeps the old one and says to press Reset, so
+  Evolve's generations never rebuild it or stop a walk. A best other than the one on show (in
+  lengths or layout) brings its own number of pairs, unless Pairs or the race was changed. A beest
+  that fails to build for any reason but a jam gets a plain message, and the fault is logged.
+  Changed by Al (the run's best in place of the latest generation's).
 - **B77 Arena timing.** The crank runs in real time at one turn a second; a slow frame advances at
   most 0.1 s (`MAX_FRAME_S`), so a slow device runs slower rather than jumping. Pyodide manages
   17,000–20,000 steps a second for 3 pairs, so a 60 fps frame of 10 steps takes under 1 ms.
@@ -392,21 +399,37 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   drawn faint behind the phase-0 pair, and the chassis turns red once the beest has tipped.
 
 - **B79 Courses** start 20 mm ahead of the beest's frontmost part and run towards −x
-  (`RUN_UP_MM`).
+  (`RUN_UP_MM`). Confirmed by Al.
 - **B80 Pencils.** 8 pencils (`PENCIL_COUNT`) with friction 0.3 (`PENCIL_FRICTION`), as painted
   wood. At friction 1.0 a caught foot lets the constant-speed crank lever Jansen's 3-pair beest over
-  backwards, in all 20 runs tried.
+  backwards, in all 20 runs tried. Confirmed by Al.
 - **B81 Towel.** 500 mm long (`TOWEL_LENGTH_MM`) with friction 1.5; its surface is a smooth cosine
   2 mm high every 10 mm (steepest slope 32°), because half-round bumps tipped Jansen's 3-pair beest
-  in 6 of 20 runs, while on the smooth surface 3 and 4 pairs finished 50 runs of 50.
+  in 6 of 20 runs, while on the smooth surface 3 and 4 pairs finished 50 runs of 50. Confirmed by
+  Al.
 - **B82 Finishing.** A beest is across once every foot is past the last pencil or the towel's far
   end, checked every 10 physics steps (`CHECK_STEPS`). The distance race lasts 10 turns on flat
   ground; the others give up after 20 turns (`MAX_RACE_TURNS`). Touching a pencil or the towel with
-  the chassis counts as falling over.
+  the chassis counts as falling over. Confirmed by Al.
 - **B83 Races run in real time** in the page: about 4 s for the pencils, 4.5 s for the towel and
   10 s for distance. Jansen's beest falls over in every race on 1 pair, and on the pencils and the
   towel on 2; on 3 pairs it crosses the pencils in 3.85 turns and the towel in 4.25, in the browser
   as under CPython.
+
+- **B84 Paused start.** Every animation starts paused with the crank at 0° and the traced path
+  drawn; a change while paused redraws the still frame where the crank stopped, rather than at 0°.
+  The arena mirrors `data-playing` as well, so every tab reports it the same way.
+- **B85 The run's best** is the highest-scoring of the generations' best beests, a tie going to the
+  later one, so elite copies, hill climbing's parent and random search's best so far are always the
+  run's best too. It keeps the generation it first led while the same beest stays best. Under
+  per-generation normalisation scores do not compare across generations, so the latest best stands
+  for the run, and the panel says why.
+- **B86 Same beest.** The two bests count as one beest when their lengths and layout are equal; the
+  run's column then shows a sentence in place of a second drawing and numbers (`data-same-best`).
+  Both columns keep their place, so nothing jumps when a run's bests part or meet again.
+- **B87 One crank in Evolve.** The two best beests share one Play button, speed and crank angle, so
+  they turn in step. A jammed beest there turns as far as the jam and waits until the crank comes
+  round again, rather than swinging back as in the four-bar and leg tabs (B19).
 
 ## Questions for Al
 
@@ -421,10 +444,10 @@ Most important first, each with what it blocks and the provisional answer the bu
   57–159 mm, bob 1.1–7.6 mm, distance 123–208 mm) where weight 1 does not; under the limits
   normalisation weight 1 is enough. Blocks nothing, but decides what Wednesday's default run
   evolves. Built on S3 as written, with `upright` at weight 0.
-- **Hosting (Q12).** Which subdomain and host? Blocks deploying: nothing is deployed, and the course
-  needs the page on a URL the students' machines can reach by Tuesday. Built on static files with a
-  `_headers` file for Cloudflare; the GA worker was built and tested with the two isolation headers,
-  which GitHub Pages cannot send.
+- **Hosting (Q12).** Which host, now that the subdomain is strandbeests.babissimo.net? Blocks
+  deploying: nothing is deployed, and the course needs the page on a URL the students' machines can
+  reach by Tuesday. Built on static files with a `_headers` file for Cloudflare; the GA worker was
+  built and tested with the two isolation headers, which GitHub Pages cannot send.
 - **Hill climbing from a jammed start.** A random start jams 81% of the time, and on 2 of 10 seeds
   (the default seed 1 among them) hill climbing is still at 0 after 1,500 evaluations. Option: start
   from the first random beest that turns fully (checking costs no fitness call). Blocks nothing, but
@@ -442,27 +465,8 @@ Most important first, each with what it blocks and the provisional answer the bu
   as written.
 - **Wrong-way walkers.** With signed distance (B6) and jams scoring 0, a wrong-way walker scores
   below a jammed leg under Jansen normalisation. Blocks nothing. Built on B6 and S3 as they stand.
-- **Crank sticks.** The template asks for one crank stick m per pair, shared by both legs (B56).
-  Does each throw use two, one each side of the legs? Blocks nothing. Built on one per pair
-  (`STICKS_PER_PAIR["m"]`).
-- **Chassis.** What is the chassis made of, and from how many pieces? The diagram gives only the
-  three holes (B60). Blocks nothing. Built on the holes alone.
-- **Template download.** Download SVG saves one file per A4 page (B64). Would one multi-page PDF
-  suit the venue better? Blocks nothing. Built on one SVG per page (Q19).
-- **Best beest of the run.** The best beest panel (B48) shows the search's best in the latest
-  generation (B36), which is also the best of the whole run for the GA with elite 1 or more under
-  Jansen or fixed-limits normalisation. Should it show the run's best whatever the settings? Blocks
-  nothing. Built on the latest generation's.
 - **Runs on one graph.** The graph keeps the last 8 runs (B47), a ninth taking the oldest's place.
   Is that enough for a lesson's comparisons? Blocks nothing. Built on 8.
-- **Arena tipping.** The arena counts a beest as fallen over once its chassis leans more than 30°
-  or touches the ground (B70). Is 30° right, and should a beest resting on its chassis count as
-  fallen over? Blocks nothing. Built on yes to both.
-- **Crank under load.** The arena's crank keeps its speed whatever the load (Q2), so a caught foot
-  can lever a beest over; that is why the pencils' friction and the towel's shape are as B80 and
-  B81 give them. Should it stall like a real motor instead? Blocks nothing. Built on constant speed.
-- **Race courses.** Do 8 pencils, a 500 mm towel, a 20 mm run-up and giving up after 20 turns
-  (B79–B82) match the real races? Blocks nothing. Built on those values.
 
 ## Slide edits for Al
 
