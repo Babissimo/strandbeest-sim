@@ -2,18 +2,11 @@
 
 The values are in Jansen units, at the holy numbers.
 """
-import importlib.util
 import math
 
 import pytest
 
-# Skips every test until Task 1 creates the package; Task 1 removes this guard. Once the package
-# exists, an import error fails the run rather than skipping it.
-if importlib.util.find_spec("beest") is None:
-    geometry = measures = None
-else:
-    from beest import geometry, measures
-pytestmark = pytest.mark.skipif(geometry is None, reason="the beest package does not exist yet")
+from beest import geometry, measures
 
 N = 360
 PHASES = {1: [0], 2: [0, 180], 3: [0, 120, 240]}
