@@ -17,7 +17,7 @@ from .leg import Leg
 # Each ingredient is read from the Leg attribute of the same name; True when higher is better.
 INGREDIENTS: dict[str, bool] = {"distance": True, "stride": True, "step_height": True,
                                 "time_down": True, "flatness": False, "upright": True}
-DEFAULT_WEIGHTS: dict[str, float] = {"distance": 1.0, "step_height": 0.5}
+DEFAULT_WEIGHTS: dict[str, float] = {"distance": 1.0, "flatness": 1.0}
 # "jansen" divides by Jansen's value; "limits" maps fixed limits onto 0–1; "generation" maps each
 # generation's own lowest and highest onto 0–1.
 NORMALISATIONS = ("jansen", "limits", "generation")
@@ -50,7 +50,7 @@ class FitnessSettings:
     """
     weights: dict[str, float] = field(
         default_factory=lambda: {name: DEFAULT_WEIGHTS.get(name, 0.0) for name in INGREDIENTS})
-    normalisation: str = "jansen"
+    normalisation: str = "limits"
     flip: dict[str, bool] = field(
         default_factory=lambda: {name: not higher for name, higher in INGREDIENTS.items()})
     limits: dict[str, tuple[float, float]] = field(default_factory=dict)

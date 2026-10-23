@@ -325,6 +325,17 @@ def test_relative_axis_label(evolve: Page) -> None:
         "Run 1: GA, seed 1 (relative to each generation)")
 
 
+def test_default_fitness_is_distance_and_flatness(evolve: Page) -> None:
+    # Under the fixed limits (decisions S3), whose table shows from the start.
+    evolve.locator("details", has_text="Fitness").locator("summary").click()
+    expect(evolve.locator("#ev-normalisation")).to_have_value("limits")
+    expect(evolve.locator("#ev-lo-distance")).to_be_visible()
+    for name in INGREDIENTS:
+        weight = "1" if name in ("distance", "flatness") else "0"
+        expect(evolve.locator(f"#ev-w-{name}")).to_have_value(weight)
+    expect(evolve.locator("#ev-flip-flatness")).to_be_checked()
+
+
 def test_fixed_limits_left_alone_are_the_surveyed_ones(evolve: Page) -> None:
     evolve.locator("details", has_text="Fitness").locator("summary").click()
     evolve.locator("#ev-normalisation").select_option("limits")

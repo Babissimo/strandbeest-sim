@@ -28,8 +28,9 @@ def jammed():
     return leg_from(genes)
 
 
-def only(name, **settings):
-    return FitnessSettings(weights={name: 1.0}, **settings)
+def only(name, normalisation="jansen", **settings):
+    """One ingredient alone, divided by Jansen's value unless another normalisation is given."""
+    return FitnessSettings(weights={name: 1.0}, normalisation=normalisation, **settings)
 
 
 def test_ingredients():
@@ -38,26 +39,29 @@ def test_ingredients():
 
 
 def test_defaults():
+    # Distance and flatness under the fixed limits (decisions S3).
     settings = FitnessSettings()
-    assert settings.normalisation == "jansen"
-    assert settings.weight("distance") == 1
-    assert settings.weight("step_height") == 0.5
+    assert settings.normalisation == "limits"
+    assert settings.weight("distance") == settings.weight("flatness") == 1
     assert all(settings.weight(name) == 0
-               for name in ("stride", "time_down", "flatness", "upright"))
+               for name in ("stride", "step_height", "time_down", "upright"))
     assert settings.flipped("flatness")
     assert not any(settings.flipped(name) for name in INGREDIENTS if name != "flatness")
 
 
 def test_jansen_normalises_to_one(jansen):
     leg = leg_from(jansen_lengths())
-    normalise([leg], FitnessSettings(), jansen)
+    by_jansen = FitnessSettings(normalisation="jansen")
+    normalise([leg], by_jansen, jansen)
     assert leg.normalised == pytest.approx({name: 1.0 for name in INGREDIENTS})
-    assert settings_fitness(FitnessSettings())(leg) == pytest.approx(1.0)
+    assert settings_fitness(only("distance", normalisation="jansen"))(leg) == pytest.approx(1.0)
+    # Flatness is flipped, so Jansen's own counts 0 on it.
+    assert settings_fitness(by_jansen)(leg) == pytest.approx(0.5)
 
 
 def test_jansen_mode_divides(jansen):
     big = stretched(1.1)
-    normalise([big], FitnessSettings(), jansen)
+    normalise([big], FitnessSettings(normalisation="jansen"), jansen)
     assert big.normalised["distance"] == pytest.approx(1.1, rel=0.01)
     assert big.normalised["time_down"] == pytest.approx(big.time_down / jansen.time_down)
 

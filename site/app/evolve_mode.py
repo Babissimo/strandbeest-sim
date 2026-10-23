@@ -287,6 +287,8 @@ class SettingsForm:
         for key in ("generations", "budget"):
             self._proxies.append(listen(self._get(key), "input",
                                         lambda event, key=key: self._choose_limit(key)))
+        # The default normalisation may be the fixed limits, whose table then shows.
+        self._normalisation_changed()
 
     def _get(self, key: str):
         return document.getElementById(f"ev-{key}")

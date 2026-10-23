@@ -132,7 +132,12 @@ Python draws through the canvas 2D API; the graph is drawn the same way. No char
   180 angles (127.9 for 3 pairs).
 - **S3 GA defaults.** `POP_SIZE = 30`, `GENERATIONS = 40`, `ELITE = 2`, `RATE = 0.2` per length,
   mutation size 3 mm, tournament of 3. Default fitness: jams score 0, otherwise distance (weight 1)
-  and step height (weight 0.5), normalised by Jansen's values.
+  and flatness (weight 1, flipped), every other ingredient at weight 0, under the fixed limits (Q5)
+  (`DEFAULT_WEIGHTS`, `FitnessSettings.normalisation`). On seeds 1 to 5 the default GA's winners
+  step 12–81 mm, bob 0.5–1.1 mm and travel 174–230 mm a turn in the model, and all five walk in the
+  arena without falling (136–230 mm a turn; Jansen 171), where every default that keeps step
+  height at 0.5 has winners that fall. Changed by Al (Claude's recommendation at his request,
+  checked in the arena).
 - **S4 Four-bar layout.** Crank pivot at the origin, rocker pivot at (ground, 0). The coupler joint
   takes the max-y intersection at θ = 0, then continuity as in Q14.
 - **S5 Slide code.** The build has the slide names but not the slide code. The starting `fitness`
@@ -160,7 +165,8 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B5 Phases** are rounded to the nearest sampled crank angle (2° at 180 angles) when feet are
   combined into a beest (interpolating would cost time for a difference far below the stride).
 - **B6 Distance is signed.** A beest whose supporting foot moves −x relative to the body walks the
-  wrong way and scores a negative distance (clipping at 0 would hide which way it went).
+  wrong way and scores a negative distance (clipping at 0 would hide which way it went). Confirmed
+  by Al.
 - **B7 Unassemblable four-bars.** A four-bar that cannot be put together at θ = 0 jams at 0° with
   nothing traced; so does the all-equal rhombus, whose crank tip sits on the rocker pivot there
   (starting elsewhere would hide that the linkage can flip either way).
@@ -465,15 +471,6 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 
 Most important first, each with what it blocks and the provisional answer the build went ahead with.
 
-- **Default fitness and step height.** The default fitness (S3: distance 1, step height 0.5, Jansen
-  normalisation) rewards step height without limit. On seeds 1–5 a default run's winners lift their
-  feet 105–216 mm with a stride of 12–32 mm, bob 5.5–17.7 mm and travel 214–499 mm a turn (Jansen:
-  27 mm, 66 mm, 0.09 mm, 170 mm), and 4 of the 5 tip over; the code route's starting fitness behaves
-  the same way. Options: a flatness weight by default, a cap on step height, or `upright` (B69) in
-  the default. `upright` at weight 3 under Jansen normalisation keeps all five up (step height
-  57–159 mm, bob 1.1–7.6 mm, distance 123–208 mm) where weight 1 does not; under the limits
-  normalisation weight 1 is enough. Blocks nothing, but decides what Wednesday's default run
-  evolves. Built on S3 as written, with `upright` at weight 0.
 - **Hosting (Q12).** Which host, now that the subdomain is strandbeests.babissimo.net? Blocks
   deploying: nothing is deployed, and the course needs the page on a URL the students' machines can
   reach by Tuesday. Built on static files with a `_headers` file for Cloudflare; the GA worker was
@@ -485,12 +482,8 @@ Most important first, each with what it blocks and the provisional answer the bu
 - **Fixed limits below Jansen.** Jansen is above the 95th percentile on stride (66 against 33 mm)
   and time down, and below the 5th on bob, so under the limits normalisation anything as good as
   Jansen clips to 1. Distance spans −358 to 174 mm because 55% of random working legs walk the wrong
-  way. Blocks nothing. Built on Q5 as written.
-- **Flatness under Jansen normalisation.** Flatness divides by Jansen's 0.093 mm bob, so any
-  flatness weight swamps the other ingredients (a 5 mm bob scores −53). Blocks nothing. Built on Q18
-  as written.
-- **Wrong-way walkers.** With signed distance (B6) and jams scoring 0, a wrong-way walker scores
-  below a jammed leg under Jansen normalisation. Blocks nothing. Built on B6 and S3 as they stand.
+  way. Under the default fitness (S3) distance saturates at the survey's 95th percentile, 174 mm a
+  turn, so a winner gains nothing from walking further. Blocks nothing. Built on Q5 as written.
 - **Runs on one graph.** The graph keeps the last 8 runs (B47), a ninth taking the oldest's place.
   Is that enough for a lesson's comparisons? Blocks nothing. Built on 8.
 
@@ -508,3 +501,5 @@ Append any place where the simulator and the slides now differ.
   does not apply.
 - Students can read `leg.tips` and `leg.upright`, and there is a sixth ingredient, `upright`
   (B67, B69).
+- The settings route's default fitness is distance and flatness under the fixed limits (S3); the
+  slides' example `fitness`, the code route's starting text, still scores stride and step height.
