@@ -1,0 +1,33 @@
+{
+  "about": "Limits for normalisation by fixed limits: each ingredient's 5th and 95th percentiles over random working legs. Written by scripts/survey_limits.py.",
+  "legs": 2000,
+  "spread": 0.25,
+  "seed": 1,
+  "percentiles": [
+    5,
+    95
+  ],
+  "down_tolerance_mm": 1.0,
+  "limits": {
+    "distance": [
+      -357.7042,
+      173.784
+    ],
+    "stride": [
+      4.1849,
+      33.4754
+    ],
+    "step_height": [
+      10.2965,
+      98.0148
+    ],
+    "time_down": [
+      0.0444,
+      0.2222
+    ],
+    "flatness": [
+      1.0519,
+      12.403
+    ]
+  }
+}

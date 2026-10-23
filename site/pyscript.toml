@@ -2,11 +2,14 @@
 # Pyodide finds its other files beside pyodide.mjs.
 interpreter = "./vendor/pyodide/pyodide.mjs"
 
-# Every module the page imports, copied into Python's working folder, which is on sys.path.
+# Every module the page imports and every file they read, copied into Python's working folder,
+# which is on sys.path.
 [files]
 "./beest/__init__.py" = "./beest/__init__.py"
+"./beest/fitness.py" = "./beest/fitness.py"
 "./beest/geometry.py" = "./beest/geometry.py"
 "./beest/leg.py" = "./beest/leg.py"
+"./beest/limits.json" = "./beest/limits.json"
 "./beest/measures.py" = "./beest/measures.py"
 "./app/__init__.py" = "./app/__init__.py"
 "./app/controls.py" = "./app/controls.py"
