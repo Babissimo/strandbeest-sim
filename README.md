@@ -1,8 +1,8 @@
 # Strandbeest simulator
 
 A browser simulator for the Evolving Machines course: four-bar linkages, a Jansen leg playground,
-and a genetic algorithm that evolves whole Strandbeests. Python runs in the page through PyScript;
-there is no backend.
+a genetic algorithm that evolves whole Strandbeests, and an arena where a beest walks under
+physics. Python runs in the page through PyScript; there is no backend.
 
 ```bash
 uv run scripts/vendor.py   # fetch the pinned PyScript, Pyodide and pymunk into site/vendor/

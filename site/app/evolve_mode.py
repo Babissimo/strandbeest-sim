@@ -16,6 +16,8 @@ import html
 import json
 import math
 import time
+import traceback
+from collections.abc import Callable
 
 from pyodide.ffi import create_proxy
 from pyscript import PyWorker, document, window
@@ -391,6 +393,12 @@ def misfits(genes: list[float]) -> str:
     return "Does not fit on lolly sticks" + (f": {'; '.join(wrong)}" if wrong else "")
 
 
+def best_layout(report: dict) -> Layout:
+    """The layout of a report's best beest."""
+    layout = report["best_layout"]
+    return Layout(layout["pairs"], tuple(layout["phases"]))
+
+
 class Run:
     """One run on its way: its settings, the editor's source if it uses it, its series on the
     graph and when it started."""
@@ -406,8 +414,11 @@ class Run:
 
 
 class EvolveMode:
-    def __init__(self, root):
+    """`on_best` is given each best beest the panel shows: its 13 lengths and its layout."""
+
+    def __init__(self, root, on_best: Callable[[list[float], Layout], None] | None = None):
         self.root = root
+        self.on_best = on_best
         self.status = ""
         self.worker = None
         self.current: Run | None = None
@@ -755,13 +766,18 @@ class EvolveMode:
 <p class="layout">{layout["pairs"]} pair{'' if layout["pairs"] == 1 else 's'} of legs, cranks at
   {phases}</p>
 """
+        if self.on_best is not None:
+            # The panel is already shown; an error in the receiver goes no further than the console.
+            try:
+                self.on_best(report["best_genes"], best_layout(report))
+            except Exception:
+                window.console.error(
+                    f"Handing on the best beest failed.\n{traceback.format_exc()}")
 
     def _leg_template(self) -> list[str]:
         """The template of the best beest on show, for its number of leg pairs."""
         report = self.shown_best
-        layout = report["best_layout"]
-        return leg_template_svg(report["best_genes"],
-                                Layout(layout["pairs"], tuple(layout["phases"])))
+        return leg_template_svg(report["best_genes"], best_layout(report))
 
     def _mirror(self, name: str, value: str) -> None:
         if self._shown.get(name) != value:

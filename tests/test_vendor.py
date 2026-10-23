@@ -209,3 +209,8 @@ def test_pymunk_must_match_pypi(
     with pytest.raises(vendor.VendorError, match="PyPI"):
         vendor.vendor_wheels()
     assert contents(tmp_path) == ["pyodide", "pyodide/pyodide-lock.json"]
+
+
+def test_the_arena_loads_the_vendored_wheel() -> None:
+    arena_mode = Path(__file__).resolve().parents[1] / "site" / "app" / "arena_mode.py"
+    assert f'"./vendor/pyodide/{vendor.PYMUNK_WHEEL}"' in arena_mode.read_text()
