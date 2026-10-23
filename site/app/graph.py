@@ -36,6 +36,8 @@ INGREDIENT_NAMES: dict[str, tuple[str, str]] = {
     "step_height": ("Step height", "mm"),
     "time_down": ("Time down", "fraction of a turn"),
     "flatness": ("Flatness: body bob", "mm"),
+    # Whether a level body always has feet on either side: stricter than the arena's 30° rule.
+    "upright": ("Upright (quick check)", ""),
 }
 
 

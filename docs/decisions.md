@@ -359,13 +359,16 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   that angle's lowest foot (one setting for "down", Q4), and the beest tips if its centre of mass
   lies outside their x range; a foot exactly under the centre of mass holds it up. The centre of
   mass sits over the crank axle (`CENTRE_OF_MASS_X_MM = 0`). At 1 mm Jansen's beest tips on 1 pair
-  and stays up on 2 pairs at 180° (above 0.65 mm) and 3 at 120° (above 0.28 mm).
+  and stays up on 2 pairs at 180° (above 0.65 mm) and 3 at 120° (above 0.28 mm). This check stays
+  as `leg.tips` and the `upright` ingredient, a quick check that is stricter than the arena (B95);
+  whether a beest falls over is judged by the arena's 30° rule (B70), which Evolve's winner checks
+  run (B94). Changed by Al.
 - **B68 A jammed leg** has `tips` None (its foot path stops short, so there is nothing to check) and
   `upright` 0.
 - **B69 `upright` limits** are fixed at 0 and 1 rather than percentiles, since only 5.4% of random
   working legs stay up. Under Jansen normalisation `upright` divides by Jansen's own value, which is
   0 at tolerances of 0.28 mm or less, so it then scores 0 for every beest (the slider's 0.5 mm
-  minimum stays clear of this). Its default weight is 0, so S3 stands.
+  minimum stays clear of this). Its default weight is 0 (S3).
 
 - **B70 Arena tipping.** A beest has tipped once its chassis leans more than 30° from level
   (`TIP_ANGLE_DEG`) or its chassis box touches the ground, checked at every step from the start.
@@ -466,6 +469,16 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   (`POPULATION_EVERY_S`) and always the last, and turns each leg position into canvas path data
   once per layout. In a default run in the cloud session frames stay at 16.7 ms median and 33 ms at
   the 95th percentile (16.7 ms without the grid).
+- **B94 Arena winner check.** Once a run ends (finished, stopped, or ended by an error after some
+  generations), its best walks on flat ground for `ARENA_TURNS` (10) on the page, about 8 ms of
+  physics a frame (`ARENA_BUDGET_S`), and stops as soon as it falls over. The check reads
+  "Checking that it walks in the arena…", then a tick with its mm a turn, or a cross saying when it
+  fell or that it stays up without walking forwards, towards −x (`data-run-winner-walks`,
+  `data-run-arena-distance`). A beest the arena cannot stand up gets the arena's reason, and a new
+  run ends a check under way. The physics engine loads once for this and the Arena tab
+  (`app/physics.py`); if it cannot load, the check says so plainly and the other checks stand.
+- **B95 Upright** is labelled "Upright (quick check)", and the fitness panel and the code route's
+  help say it is stricter than the arena. Its weight stays 0 by default.
 
 ## Questions for Al
 
@@ -475,10 +488,6 @@ Most important first, each with what it blocks and the provisional answer the bu
   deploying: nothing is deployed, and the course needs the page on a URL the students' machines can
   reach by Tuesday. Built on static files with a `_headers` file for Cloudflare; the GA worker was
   built and tested with the two isolation headers, which GitHub Pages cannot send.
-- **Support check.** A beest tips when its centre of mass lies outside the feet within the down
-  tolerance of the lowest foot (B67). At 1 mm that tips 95% of random working legs within ±25% of
-  Jansen's, and Jansen's own 2-pair beest tips at 0.65 mm and below, though the arena walks a
-  2-pair beest. Is this the right check? Blocks nothing. Built on the plan's check.
 - **Fixed limits below Jansen.** Jansen is above the 95th percentile on stride (66 against 33 mm)
   and time down, and below the 5th on bob, so under the limits normalisation anything as good as
   Jansen clips to 1. Distance spans −358 to 174 mm because 55% of random working legs walk the wrong

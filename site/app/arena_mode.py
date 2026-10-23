@@ -1,12 +1,12 @@
 """Arena: a whole beest walking on the ground in 2D physics (decisions Q2).
 
-The physics engine (pymunk, on Pyodide's own cffi) loads the first time the tab is opened, so the
-page starts without waiting for it, and the other tabs work even if it cannot load. The beest
-stands still until Start. The root element shows `data-status` (loading, ready, running or
-error), `data-playing` (true while it walks), `data-beest`, `data-pairs`, `data-jammed` (a beest
-that cannot be built leaves the status ready, with nothing to start), `data-turns`,
-`data-travel` (mm walked left), `data-distance-per-turn` (empty until a whole turn is done) and
-`data-tipped`. In a race it also shows `data-race`, and once the race is decided,
+The physics engine (pymunk, on Pyodide's own cffi, app/physics.py) loads the first time the tab
+is opened, unless Evolve has loaded it already, and the other tabs work even if it cannot load.
+The beest stands still until Start. The root element shows `data-status` (loading, ready,
+running or error), `data-playing` (true while it walks), `data-beest`, `data-pairs`,
+`data-jammed` (a beest that cannot be built leaves the status ready, with nothing to start),
+`data-turns`, `data-travel` (mm walked left), `data-distance-per-turn` (empty until a whole turn
+is done) and `data-tipped`. In a race it also shows `data-race`, and once the race is decided,
 `data-outcome` (finished, fell or gave-up) and `data-race-turns`.
 """
 from __future__ import annotations
@@ -22,11 +22,10 @@ from pyscript import window
 from app import draw
 from app.controls import MAX_FRAME_S, announce, listen
 from app.leg_mode import COLOURS, STICKS, TRIANGLES
+from app.physics import engine
 from beest.geometry import LENGTH_NAMES, Point
 from beest.leg import Layout, jansen_lengths
 
-# Where scripts/vendor.py puts pymunk; Pyodide finds cffi beside itself through its lock file.
-WHEEL = "./vendor/pyodide/pymunk-7.3.1-cp314-cp314-pyemscripten_2026_0_wasm32.whl"
 # The choices in #arena-beest.
 JANSEN, PLAYGROUND, EVOLVED = "jansen", "leg", "evolved"
 # The choice in #arena-race that is no race; the others are beest.arena's RACES.
@@ -169,10 +168,7 @@ class ArenaMode:
         self.mirror("status", "loading")
         self.say(LOADING, notice=True)
         try:
-            import pyodide_js
-            # A wheel that fails to load is logged, and the import below then fails.
-            await pyodide_js.loadPackage(["cffi", WHEEL])
-            from beest import arena as physics
+            physics = await engine()
         except Exception as error:
             self.mirror("status", "error")
             self.say(LOAD_FAILED)

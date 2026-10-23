@@ -5,7 +5,7 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from beest import ga
+from beest import arena, ga
 from beest.fitness import INGREDIENTS, FitnessSettings, fixed_limits
 from beest.geometry import LENGTH_NAMES
 from beest.leg import MM_PER_UNIT, jansen_lengths
@@ -14,6 +14,8 @@ pytestmark = pytest.mark.e2e
 
 START_TIMEOUT_MS = 90_000
 RUN_TIMEOUT_MS = 60_000
+# The arena check loads the physics engine first.
+ARENA_TIMEOUT_MS = 60_000
 
 
 @pytest.fixture
@@ -95,12 +97,68 @@ def test_default_run_completes(evolve: Page) -> None:
     expect(root).not_to_have_attribute("data-angle", "0")
     expect(evolve.locator(".ev-legend")).to_contain_text("Run 1: GA, seed 1")
     expect(evolve.locator(".ev-progress")).to_contain_text("Finished: 40 generations")
+    # Once the run has ended, its best walks in the arena too.
+    walked = arena.run(final.run_best_genes, final.run_best_layout)
+    assert not walked.tipped
+    expect(root).to_have_attribute("data-run-winner-walks", "true", timeout=ARENA_TIMEOUT_MS)
+    assert float(root.get_attribute("data-run-arena-distance")) == pytest.approx(walked.distance,
+                                                                                abs=0.5)
+    expect(column(evolve, "latest").locator('[data-check="arena"]')).to_have_text(
+        f"✓ Walks in the arena without falling over: {walked.distance:.0f} mm a turn")
     # The grid shows the last generation, every beest of it.
     expect(root).to_have_attribute("data-population", str(ga.POP_SIZE))
     expect(root).to_have_attribute("data-population-generation", str(ga.GENERATIONS - 1))
     expect(evolve.locator(".ev-population")).to_be_visible()
     expect(evolve.locator(".ev-population-hint")).to_contain_text(
         f"Run 1: GA, seed 1, generation {ga.GENERATIONS - 1}: every beest, best first")
+
+
+def test_run_best_that_falls_over_in_the_arena(evolve: Page) -> None:
+    wheels = []
+    evolve.context.on("request", lambda request: wheels.append(request.url)
+                      if "/pymunk-" in request.url else None)
+    stop_after(evolve, "generations", 3)
+    run_and_wait(evolve)
+    root = mode(evolve)
+    final = ga.run(ga.RunSettings(generations=3))
+    fell = arena.Arena(final.run_best_genes, final.run_best_layout).run()
+    assert fell.tipped
+    expect(root).to_have_attribute("data-run-winner-walks", "false", timeout=ARENA_TIMEOUT_MS)
+    expect(root).not_to_have_attribute("data-run-arena-distance", re.compile(".*"))
+    expect(column(evolve, "latest").locator('[data-check="arena"]')).to_have_text(
+        f"✗ Falls over in the arena {arena.fell(fell.tipped_at)}")
+    # The Arena tab uses the engine Evolve loaded.
+    evolve.get_by_role("link", name="Arena", exact=True).click()
+    expect(evolve.locator("#arena-mode")).to_have_attribute("data-status", "ready",
+                                                            timeout=START_TIMEOUT_MS)
+    assert len(wheels) == 1
+    # A new run clears the check, even one that ends before its first generation: here no
+    # random beest keeps every pair of links 50 mm from failing to meet.
+    evolve.get_by_role("link", name="Evolve", exact=True).click()
+    evolve.locator("#ev-start").select_option("turning")
+    evolve.locator("details", has_text="More settings").locator("summary").click()
+    evolve.locator("#ev-margin").fill("50")
+    evolve.get_by_role("button", name="Run", exact=True).click()
+    expect(root).to_have_attribute("data-error", re.compile(f"{ga.START_TRIES} tries"),
+                                   timeout=RUN_TIMEOUT_MS)
+    expect(root).not_to_have_attribute("data-run-winner-walks", re.compile(".*"))
+    expect(evolve.locator('[data-check="arena"]')).to_have_count(0)
+
+
+@pytest.mark.page_errors_expected
+def test_arena_check_without_the_physics_engine(page: Page) -> None:
+    page.route("**/pymunk-*.whl", lambda route: route.fulfill(status=404))
+    page.goto("/#evolve")
+    root = mode(page)
+    expect(root).to_have_attribute("data-status", "ready", timeout=START_TIMEOUT_MS)
+    stop_after(page, "generations", 2)
+    run_and_wait(page)
+    expect(root).to_have_attribute("data-run-winner-walks", "error", timeout=ARENA_TIMEOUT_MS)
+    checks = column(page, "latest")
+    expect(checks.locator('[data-check="arena"]')).to_have_text(
+        "The physics engine could not load, so the arena check cannot run.")
+    for check in ("turns", "fits"):
+        expect(checks.locator(f'[data-check="{check}"]')).to_have_text(re.compile("^[✓✗] "))
 
 
 def test_stop_halts_run(evolve: Page) -> None:

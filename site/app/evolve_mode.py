@@ -5,16 +5,18 @@ starts the first time the mode is on screen. Stop terminates it and starts a fre
 also ends code that never returns; so does a run of the editor's code, or a worker that fails.
 Two beests are shown side by side, the best of the latest generation and the best of the whole
 run so far, with every beest of a recent generation below them, all turned by one crank; the
-template and the arena take the run's best.
+template and the arena take the run's best. Once a run ends, its best walks in the arena's physics
+on flat ground, a few physics steps each frame, for one more winner check.
 The root element mirrors the mode's state in `data-*` attributes: status (starting, ready,
 running or error), generation and evaluations (of the latest report in the run), best-score,
 winner-turns and winner-fits (the latest generation's best), run-best-score,
 run-best-generation, run-winner-turns and run-winner-fits (the run's best), same-best (whether
-they are one beest), population and population-generation (the beests in the grid and their
-generation), the crank's playing, angle and drawn-to, series (runs on the graph), points
-(in the latest run), graph-view, axis (the score axis's title), route (settings or code),
-design-jams (while the start is the Leg tab's design) and, when a run fails, error and, for an
-error in the editor's code with a line, error-line.
+they are one beest), run-winner-walks (checking, true, false or error, once a run has ended)
+and run-arena-distance (mm a turn in the arena), population and population-generation (the
+beests in the grid and their generation), the crank's playing, angle and drawn-to, series (runs
+on the graph), points (in the latest run), graph-view, axis (the score axis's title), route
+(settings or code), design-jams (while the start is the Leg tab's design) and, when a run fails,
+error and, for an error in the editor's code with a line, error-line.
 """
 from __future__ import annotations
 
@@ -26,15 +28,17 @@ import time
 import traceback
 from collections.abc import Callable
 
-from pyodide.ffi import create_proxy
+from pyodide.ffi import create_once_callable, create_proxy, jsnull
 from pyscript import PyWorker, document, window
 
 from app import draw, job
+from app.arena_mode import minus, sentence
 from app.beest_picture import BeestPicture
 from app.controls import Animator, listen
 from app.editor import CodePanel
 from app.graph import MAX_SERIES, Graph, label, reading, short, title
 from app.leg_mode import TOLERANCE_BOUNDS
+from app.physics import engine
 from app.population import PopulationGrid
 from app.printing import TemplateButtons
 from app.storage import keep, recall
@@ -54,6 +58,13 @@ BEST_EVERY_MS = 250
 # During a run the grid takes a new generation at most this often, in s; tracing one takes a good
 # part of the spare time in that many frames. A run's last generation is always shown.
 POPULATION_EVERY_S = 1.0
+# How long each frame may spend walking the run's best in the arena, in s, and how many physics
+# steps it takes between looks at the clock.
+ARENA_BUDGET_S = 0.008
+ARENA_STEPS = 50
+ARENA_CHECKING = "Checking that it walks in the arena…"
+ARENA_FAILED = "The physics engine could not load, so the arena check cannot run."
+ARENA_FAULT = "Something went wrong in the arena, so the arena check cannot run."
 # The crank angles every beest picture shares: one turn, round and round.
 CRANK_TURN = [2 * math.pi * k / DRAW_ANGLES for k in range(DRAW_ANGLES)]
 # The two best beests on show, by the start of their fields' names in a report.
@@ -222,7 +233,9 @@ def panel_html() -> str:
       <tbody>{"".join(rows)}</tbody>
     </table>
     <p class="hint">A beest that jams scores 0. Flip an ingredient when lower is better: it then
-      counts 1 − its normalised value.</p>
+      counts 1 − its normalised value. Upright is a quick check that the body always has a foot
+      down on each side of it, which is stricter than the arena; the winner checks walk the best
+      beest in the arena itself.</p>
   </div>
   <div class="limits" hidden>
     <table class="ingredients">
@@ -513,6 +526,18 @@ def facts_html(beest: dict, which: str) -> str:
 """
 
 
+def arena_key(beest: dict) -> tuple:
+    """What identifies a best beest for the arena check: its lengths and throw angles."""
+    return tuple(beest["genes"]), tuple(beest["layout"]["phases"])
+
+
+async def next_frame() -> None:
+    """Waits for the browser's next animation frame, so the page draws in between."""
+    frame = asyncio.get_running_loop().create_future()
+    window.requestAnimationFrame(create_once_callable(lambda now: frame.set_result(now)))
+    await frame
+
+
 def same_note(relative: bool, since: int) -> str:
     """What the run's column says when its best is the latest generation's best."""
     if relative:
@@ -561,6 +586,13 @@ class EvolveMode:
         self._best_drawn = -math.inf
         # When the grid was last offered a generation, in s.
         self._population_offered = -math.inf
+        # The arena check of the run's best: its beest, state (as data-run-winner-walks shows it)
+        # and words; a new check or run ends the one under way.
+        self._arena: tuple[tuple, str, str] | None = None
+        self._arena_check = 0
+        # The column whose facts are the run's best beest's: its own, or the latest's when they
+        # are one beest.
+        self._run_column = "run"
         # What the status line last said about a run.
         self._said = ""
         # The error on show, and whether it is in the editor's code.
@@ -686,6 +718,7 @@ class EvolveMode:
             self._show_error(str(exc))
             return False
         self._show_error(None)
+        self._end_arena_check()
         self.runs += 1
         name = PRESET_NAMES.get(settings.preset, settings.preset)
         coded = "" if source is None else ", your code"
@@ -733,6 +766,11 @@ class EvolveMode:
         self._show_progress(run, ended)
         self._show_best()
         self._offer_population(at_once=True)
+        if self.best_run is run and self.shown_best is not None:
+            top = best_of(self.shown_best, "run")
+            self._end_arena_check()
+            self._spawn(self._check_in_arena(self._arena_check, arena_key(top), top["genes"],
+                                             layout_of(top)))
         self._schedule()
 
     def _give_back(self, run: Run, ended: str) -> None:
@@ -896,6 +934,7 @@ class EvolveMode:
             self._mirror(f"{prefix}winner-fits", str(beest["fits"]).lower())
         self._mirror("run-best-generation", str(since))
         self._mirror("same-best", str(same).lower())
+        self._run_column = "latest" if same else "run"
         name = html.escape(run.series.label)
         shown = [("latest", latest, f"{name}, generation {report['generation']}")]
         if not same:
@@ -914,6 +953,7 @@ class EvolveMode:
         else:
             self.animator.load(CRANK_TURN, DRAW_ANGLES, loops=True)
         self._offer_population()
+        self._show_arena()
         if self.on_best is not None:
             # The panel is already shown; an error in the receiver goes no further than the console.
             try:
@@ -934,6 +974,90 @@ class EvolveMode:
         drew = [picture.draw(theta) for picture in self.pictures.values()]
         drew.append(self.population.draw(theta))
         return any(drew)
+
+    def _end_arena_check(self) -> None:
+        """Ends any arena check under way and clears what it showed."""
+        self._arena_check += 1
+        self._arena = None
+        for name in ("run-winner-walks", "run-arena-distance"):
+            self._forget(name)
+        for item in self.root.querySelectorAll('[data-check="arena"]'):
+            item.remove()
+
+    async def _check_in_arena(self, check: int, key: tuple, genes: list[float],
+                              layout: Layout) -> None:
+        """Walks the run's best on flat ground for ARENA_TURNS, a little each frame, and shows
+        whether it stays up; it gives up once `check` is no longer the latest."""
+        if check != self._arena_check:
+            return
+        self._set_arena(key, "checking", ARENA_CHECKING)
+        try:
+            physics = await engine()
+        except Exception as error:
+            window.console.warn(f"The arena's physics engine did not load: {error!r}")
+            if check == self._arena_check:
+                self._set_arena(key, "error", ARENA_FAILED)
+            return
+        try:
+            arena = physics.Arena(genes, layout)
+            goal = round(physics.ARENA_TURNS * physics.STEPS_PER_TURN)
+            while arena.steps < goal and not arena.tipped:
+                if check != self._arena_check:
+                    return
+                deadline = time.perf_counter() + ARENA_BUDGET_S
+                while arena.steps < goal and not arena.tipped and time.perf_counter() < deadline:
+                    arena.step(min(ARENA_STEPS, goal - arena.steps))
+                await next_frame()
+        except ValueError as error:
+            if check == self._arena_check:
+                self._set_arena(key, "false", f"{CROSS} It cannot walk in the arena: "
+                                              f"{sentence(error)}")
+            return
+        except Exception:
+            window.console.error(f"The arena check failed.\n{traceback.format_exc()}")
+            if check == self._arena_check:
+                self._set_arena(key, "error", ARENA_FAULT)
+            return
+        if check != self._arena_check:
+            return
+        result = arena.result()
+        if result.tipped:
+            self._set_arena(key, "false",
+                            f"{CROSS} Falls over in the arena {physics.fell(result.tipped_at)}")
+            return
+        self._mirror("run-arena-distance", str(round(result.distance, 2)))
+        per_turn = f"{minus(f'{result.distance:.0f}')} mm a turn"
+        if result.distance > 0:
+            self._set_arena(key, "true",
+                            f"{TICK} Walks in the arena without falling over: {per_turn}")
+        else:
+            self._set_arena(key, "false", f"{CROSS} Stays up in the arena but does not walk "
+                                          f"forwards: {per_turn}")
+
+    def _set_arena(self, key: tuple, state: str, text: str) -> None:
+        self._arena = key, state, text
+        self._mirror("run-winner-walks", state)
+        self._show_arena()
+
+    def _show_arena(self) -> None:
+        """Puts the arena check under the run's best beest's other checks, if it is on show."""
+        report = self.shown_best
+        if self._arena is None or report is None:
+            return
+        key, state, text = self._arena
+        if arena_key(best_of(report, "run")) != key:
+            return
+        # querySelector finds nothing as jsnull.
+        checks = self.columns[self._run_column].querySelector(".checks")
+        if checks is jsnull:
+            return
+        item = checks.querySelector('[data-check="arena"]')
+        if item is jsnull:
+            item = document.createElement("li")
+            item.dataset.check = "arena"
+            checks.appendChild(item)
+        item.className = {"true": "ok", "false": "bad"}.get(state, "")
+        item.textContent = text
 
     def _offer_population(self, at_once: bool = False) -> None:
         """Gives the grid the generation whose bests are on show; during a run, only so often."""
