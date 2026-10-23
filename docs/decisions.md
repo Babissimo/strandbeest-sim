@@ -255,6 +255,35 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   `pyproject.toml`), since the plan puts a `test_leg.py` in both `tests/` and `tests/e2e/` and the
   default mode cannot collect two test files with one name.
 
+- **B41 Worker start.** The GA worker starts the first time Evolve is on screen, so a four-bar
+  lesson never loads a second Python, and counts as failed after 90 s (`WORKER_START_S`). It also
+  answers a start-up check, because PyScript reports a worker ready even when its script raised.
+- **B42 Fresh workers.** Stop, a worker whose call fails, and every run of editor code each get a
+  fresh worker (editor code may have changed the engine's modules); settings runs reuse it.
+- **B43 Errors.** Settings and editor-code errors show beside Run and in `data-error`, without a
+  console log; faults in the simulator itself also go to the console, so browser tests fail on them.
+- **B44 Settings panel.** Search, stop after, population, mutation rate and size, and seed are on
+  show; Fitness (normalisation, weights, flips, fixed limits) and "More settings" (elite, crossover,
+  gene mask, layout, down tolerance, jam margin) sit in closed sections. Ingredient lists come from
+  `fitness.INGREDIENTS`. The form keeps mutation rate within 0–1 and down tolerance within the leg
+  playground's bounds (B24); every other limit shows the engine's own message.
+- **B45 Presets.** Hill climbing shows population 1, elite 0 and crossover none (`HILL_SETTINGS`)
+  and gives the GA's values back when left. Choosing hill or random switches "Stop after" to 1,500
+  evaluations, and the GA keeps that, so all three compare on one budget. Settings a preset ignores
+  are greyed out.
+- **B46 Fixed limits** show to 4 significant figures; a box left as shown sends the exact surveyed
+  value.
+- **B47 Graph.** It keeps the last 8 runs (`MAX_SERIES`, one per colour); best is solid, average
+  dashed, x is "Evaluations (beests scored)". "Relative to this generation" labels the axis when
+  every run on the graph uses it, otherwise the legend marks those runs. Hovering shows each run's
+  numbers. The ingredients view has one small panel per ingredient, each on its own scale.
+- **B48 Best beest panel** shows the engine's best for the latest generation, labelled with run and
+  generation, drawn with the body still and the ground moving, the 0° pair dark and in front, the
+  arrow pointing left; it redraws at most every 250 ms during a run. `data-generation` counts
+  from 0.
+- **B49 Throw placement.** `measures.throw_steps` places the crank throws for both the scoring and
+  the drawing, so they agree.
+
 ## Questions for Al
 
 Append questions here as they arise, most important first, each with what it blocks and the
@@ -279,6 +308,12 @@ provisional answer the build went ahead with.
   as written.
 - **Wrong-way walkers.** With signed distance (B6) and jams scoring 0, a wrong-way walker scores
   below a jammed leg under Jansen normalisation. Blocks nothing. Built on B6 and S3 as they stand.
+- **Best beest of the run.** The best beest panel (B48) shows the search's best in the latest
+  generation (B36), which is also the best of the whole run for the GA with elite 1 or more under
+  Jansen or fixed-limits normalisation. Should it show the run's best whatever the settings? Blocks
+  nothing. Built on the latest generation's.
+- **Runs on one graph.** The graph keeps the last 8 runs (B47), a ninth taking the oldest's place.
+  Is that enough for a lesson's comparisons? Blocks nothing. Built on 8.
 
 ## Slide edits for Al
 
