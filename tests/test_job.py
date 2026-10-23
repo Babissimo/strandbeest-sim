@@ -115,6 +115,16 @@ def test_student_errors_come_back_with_editor_lines(source, line, words):
         assert f'"{ga.EDITOR}", line {line}' in error["traceback"]
 
 
+@pytest.mark.parametrize("comment", ["", "  # \x0c\u2028"], ids=["plain", "odd-breaks"])
+def test_traceback_shows_the_editor_lines(comment):
+    # A form feed or line separator in a comment breaks no line for Python.
+    source = SOURCE.replace(SCORE, "return leg.stride / 0").replace("import clamp\n",
+                                                                     f"import clamp{comment}\n")
+    result, _ = carry_out(SMALL, source)
+    trace = result["error"]["traceback"]
+    assert '"<editor>", line 9, in fitness\n    return leg.stride / 0\n' in trace
+
+
 def test_crash_comes_back_with_its_traceback(monkeypatch):
     def broken(*args, **kwargs):
         raise RuntimeError("broken on purpose")
