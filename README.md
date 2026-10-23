@@ -5,7 +5,7 @@ and a genetic algorithm that evolves whole Strandbeests. Python runs in the page
 there is no backend.
 
 ```bash
-uv run scripts/vendor.py   # fetch the pinned PyScript and Pyodide into site/vendor/
+uv run scripts/vendor.py   # fetch the pinned PyScript, Pyodide and pymunk into site/vendor/
 uv run scripts/serve.py    # serve site/ at http://127.0.0.1:8000
 ```
 
