@@ -66,11 +66,13 @@ vendored the same way when the arena is built.
 ### Q11 Priority order: provisional
 As the brief's §5, in the order of the plan's tasks.
 
-### Q12 Hosting: provisional
-The page will live at strandbeests.babissimo.net (Al); the host is still to be settled. Nothing
-deploys yet. `site/` is plain static files with no build step, so either host in the brief's §7 can
-serve it; it includes a `_headers` file for Cloudflare. The repo is `Babissimo/strandbeest-sim`
-(private) until Al names it.
+### Q12 Hosting: changed
+Al's answer: Cloudflare, as for his Ratchet site, at strandbeests.babissimo.net. `site/` is plain
+static files with no build step and a `_headers` file; `deploy/` holds the Worker that serves it,
+and `.github/workflows/deploy.yml` deploys it from `main` once the repository has a
+`CLOUDFLARE_API_TOKEN` secret (B96–B98). A card in `projects/projects.yml` of
+`Babissimo/babissimo.github.io` links to it from babissimo.net's projects page. The repo is
+`Babissimo/strandbeest-sim` (private) until Al names it. Changed by Al.
 
 ### Q13 Devices: provisional
 Unknown. Target current Chrome, Edge, Safari and Firefox on laptops. Size the default GA settings so a
@@ -479,15 +481,31 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   (`app/physics.py`); if it cannot load, the check says so plainly and the other checks stand.
 - **B95 Upright** is labelled "Upright (quick check)", and the fitness panel and the code route's
   help say it is stricter than the arena. Its weight stays 0 by default.
+- **B96 Hosting.** `deploy/wrangler.jsonc` serves `site/` from a Worker with no script, named
+  `strandbeest-sim`, on the custom domain strandbeests.babissimo.net with workers.dev and preview
+  URLs off, as Ratchet's site is (Q12). Wrangler 4.148.0, Ratchet's version, is pinned in
+  `deploy/package.json` and its lockfile. The configuration sits beside `site/` rather than in it,
+  so it is not served. Files keep Cloudflare's default caching (browsers check for a newer copy on
+  each visit), so a deploy shows at once.
+- **B97 Deploy workflow.** `.github/workflows/deploy.yml` deploys on pushes to `main` that touch
+  `site/`, `deploy/`, `scripts/vendor.py` or the workflow, and when run by hand; pull requests, and
+  runs by hand from other branches, get a dry run, which fails on a file over 25 MiB. It does not
+  wait for CI, as Ratchet's does not, since `main` changes only through checked pull requests. It
+  holds the token, so its actions are pinned to commits and it uses no caches; the account id is
+  written in it, as in Ratchet's (an identifier, not a credential). A deploy uploads 97 files,
+  19 MB in all, the largest Pyodide's 9.6 MB wasm, against 20,000 files a version on the free plan.
+- **B98 Types and headers.** Cloudflare sends no Content-Type for `.py` and `.whl`, so `site/_headers`
+  gives them `text/plain; charset=utf-8` and `application/octet-stream`, as `scripts/serve.py`
+  does, and `tests/test_headers.py` keeps the two in step, isolation headers included. Every other
+  type the page loads comes from Cloudflare's table. Under `wrangler dev` every response, 404s
+  included, carries both isolation headers, and the whole browser suite passes against it.
+  `site/.assetsignore` keeps `__pycache__` out of a deploy made from a machine that has run the
+  tests.
 
 ## Questions for Al
 
 Most important first, each with what it blocks and the provisional answer the build went ahead with.
 
-- **Hosting (Q12).** Which host, now that the subdomain is strandbeests.babissimo.net? Blocks
-  deploying: nothing is deployed, and the course needs the page on a URL the students' machines can
-  reach by Tuesday. Built on static files with a `_headers` file for Cloudflare; the GA worker was
-  built and tested with the two isolation headers, which GitHub Pages cannot send.
 - **Fixed limits below Jansen.** Jansen is above the 95th percentile on stride (66 against 33 mm)
   and time down, and below the 5th on bob, so under the limits normalisation anything as good as
   Jansen clips to 1. Distance spans −358 to 174 mm because 55% of random working legs walk the wrong
