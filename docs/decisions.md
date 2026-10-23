@@ -144,6 +144,32 @@ Python draws through the canvas 2D API; the graph is drawn the same way. No char
 
 Append one line per call that a reviewer could disagree with: `B<n> <what was decided> (why)`.
 
+- **B1 Environment.** In the cloud session `uv sync` and the model tests work and the npm registry
+  is reachable. Playwright cannot download its Chromium, but the image's own Chromium 141 at
+  `/opt/pw-browsers/chromium` launches, so the browser tests run in the session as well as in CI.
+- **B2 Angles reached.** `LegTrace.angles` and `FourBarTrace.angles` hold only the angles reached,
+  so they pair one to one with the joints (the plan left open whether they list every sample).
+- **B3 Closing angle.** A leg or four-bar that fails at the extra angle 2π, or comes back more than
+  0.5 mm away, is jammed with `jam_angle` None and the reason "the leg does not come back to where
+  it started" (it has no single angle to name). 1 in 4,000 random legs within ±30% does this.
+- **B4 Closest to jam of a jammed leg** is the margin of the pair that failed, so it is negative when
+  the circles miss (a measure of how far off the leg is).
+- **B5 Phases** are rounded to the nearest sampled crank angle (2° at 180 angles) when feet are
+  combined into a beest (interpolating would cost time for a difference far below the stride).
+- **B6 Distance is signed.** A beest whose supporting foot moves −x relative to the body walks the
+  wrong way and scores a negative distance (clipping at 0 would hide which way it went).
+- **B7 Unassemblable four-bars.** A four-bar that cannot be put together at θ = 0 jams at 0° with
+  nothing traced; so does the all-equal rhombus, whose crank tip sits on the rocker pivot there
+  (starting elsewhere would hide that the linkage can flip either way).
+- **B8 Change point tolerance.** Lengths within 1e-6 mm of S + L = P + Q count as a change point
+  (slider values such as 20.1 + 40.1 and 30.1 + 30.1 differ in floating point).
+- **B9 Figure of eight.** A crossing counts only if both loops it makes have a roundness
+  (4π × area / perimeter²) of at least 0.02 (`FIGURE_EIGHT_MIN_ROUNDNESS`). A tracer on or beside
+  the coupler joint doubles back along one arc, and sampling then makes thin false crossings: in a
+  survey of 300 crank-rockers these slivers stayed below 0.011, while every real loop was above 0.03.
+- **B10 Tied feet.** When two feet are equally low, the one lower at the next angle carries the body,
+  so the order in which throws are listed does not change the distance.
+
 ## Questions for Al
 
 Append questions here as they arise, most important first, each with what it blocks and the
