@@ -14,7 +14,7 @@ from beest.geometry import ANGLES, DRAW_ANGLES, LENGTH_NAMES, LegTrace, Point, t
 from beest.leg import DOWN_TOLERANCE_MM, LENGTH_BOUNDS, jansen_lengths
 from beest.measures import FootMeasures, foot_measures
 
-# The playground's down tolerance slider (decisions Q4).
+# The down tolerance a student may choose here and in Evolve, in mm (decisions Q4).
 TOLERANCE_BOUNDS = (0.5, 4.0)
 LABELS = {"a": "a (frame)", "l": "l (frame)", "m": "m (crank)"}
 # Each stick by the joints it joins, drawn in this order.

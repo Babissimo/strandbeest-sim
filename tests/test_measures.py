@@ -40,6 +40,12 @@ def test_phases_round_half_up_at_180_angles():
     assert measures.beest_feet(foot, [13])[0][0] == foot[7]
 
 
+def test_throw_steps():
+    assert measures.throw_steps([0, 120, 240], 180) == [0, 60, 120]
+    assert measures.throw_steps([13, 359.9, -120], 180) == [7, 0, 120]
+    assert measures.throw_steps([0.5, 1.5], 360) == [1, 2]
+
+
 def test_phase_order_does_not_matter(foot):
     assert (measures.beest_measures(foot, [0, -120, 120])
             == measures.beest_measures(foot, [0, 120, 240]))
