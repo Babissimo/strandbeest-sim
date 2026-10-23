@@ -1,0 +1,16 @@
+# PyScript settings for the GA worker (app/ga_worker.py). The page passes the vendored
+# pyodide.mjs to PyWorker itself, since a worker does not read `interpreter`.
+interpreter = "./vendor/pyodide/pyodide.mjs"
+
+# Every module the worker imports, copied into its Python's working folder.
+[files]
+"./beest/__init__.py" = "./beest/__init__.py"
+"./beest/fitness.py" = "./beest/fitness.py"
+"./beest/ga.py" = "./beest/ga.py"
+"./beest/geometry.py" = "./beest/geometry.py"
+"./beest/leg.py" = "./beest/leg.py"
+"./beest/limits.json" = "./beest/limits.json"
+"./beest/measures.py" = "./beest/measures.py"
+"./beest/student_default.py" = "./beest/student_default.py"
+"./app/__init__.py" = "./app/__init__.py"
+"./app/job.py" = "./app/job.py"
