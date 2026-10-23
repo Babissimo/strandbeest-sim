@@ -410,22 +410,29 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 
 ## Questions for Al
 
-Append questions here as they arise, most important first, each with what it blocks and the
-provisional answer the build went ahead with.
+Most important first, each with what it blocks and the provisional answer the build went ahead with.
 
 - **Default fitness and step height.** The default fitness (S3: distance 1, step height 0.5, Jansen
-  normalisation) rewards step height without limit. Evolved winners lift their feet 160–390 mm, bob
-  14–98 mm and "walk" 450–1,600 mm a turn on a 77 mm crank (Jansen: 27 mm, 0.09 mm, 170 mm, crank
-  18 mm); the code route's starting fitness does the same. Options: a flatness weight by default, a
-  cap on step height, or `upright` (B69) in the default. On seeds 1–5, 4 of 5 default winners tip;
-  `upright` at weight 3 under Jansen normalisation keeps all five up (step height 57–159 mm, bob
-  1.1–7.6 mm, distance 123–208 mm) where weight 1 does not, and under the limits normalisation
-  weight 1 is enough. Blocks nothing, but decides what a default run evolves. Built on S3 as
-  written, with `upright` at weight 0.
+  normalisation) rewards step height without limit. On seeds 1–5 a default run's winners lift their
+  feet 105–216 mm with a stride of 12–32 mm, bob 5.5–17.7 mm and travel 214–499 mm a turn (Jansen:
+  27 mm, 66 mm, 0.09 mm, 170 mm), and 4 of the 5 tip over; the code route's starting fitness behaves
+  the same way. Options: a flatness weight by default, a cap on step height, or `upright` (B69) in
+  the default. `upright` at weight 3 under Jansen normalisation keeps all five up (step height
+  57–159 mm, bob 1.1–7.6 mm, distance 123–208 mm) where weight 1 does not; under the limits
+  normalisation weight 1 is enough. Blocks nothing, but decides what Wednesday's default run
+  evolves. Built on S3 as written, with `upright` at weight 0.
+- **Hosting (Q12).** Which subdomain and host? Blocks deploying: nothing is deployed, and the course
+  needs the page on a URL the students' machines can reach by Tuesday. Built on static files with a
+  `_headers` file for Cloudflare; the GA worker was built and tested with the two isolation headers,
+  which GitHub Pages cannot send.
 - **Hill climbing from a jammed start.** A random start jams 81% of the time, and on 2 of 10 seeds
   (the default seed 1 among them) hill climbing is still at 0 after 1,500 evaluations. Option: start
   from the first random beest that turns fully (checking costs no fitness call). Blocks nothing, but
-  makes the Wednesday comparison lopsided. Built on pure hill climbing.
+  makes Wednesday's comparison lopsided. Built on pure hill climbing.
+- **Support check.** A beest tips when its centre of mass lies outside the feet within the down
+  tolerance of the lowest foot (B67). At 1 mm that tips 95% of random working legs within ±25% of
+  Jansen's, and Jansen's own 2-pair beest tips at 0.65 mm and below, though the arena walks a
+  2-pair beest. Is this the right check? Blocks nothing. Built on the plan's check.
 - **Fixed limits below Jansen.** Jansen is above the 95th percentile on stride (66 against 33 mm)
   and time down, and below the 5th on bob, so under the limits normalisation anything as good as
   Jansen clips to 1. Distance spans −358 to 174 mm because 55% of random working legs walk the wrong
@@ -435,23 +442,19 @@ provisional answer the build went ahead with.
   as written.
 - **Wrong-way walkers.** With signed distance (B6) and jams scoring 0, a wrong-way walker scores
   below a jammed leg under Jansen normalisation. Blocks nothing. Built on B6 and S3 as they stand.
+- **Crank sticks.** The template asks for one crank stick m per pair, shared by both legs (B56).
+  Does each throw use two, one each side of the legs? Blocks nothing. Built on one per pair
+  (`STICKS_PER_PAIR["m"]`).
+- **Chassis.** What is the chassis made of, and from how many pieces? The diagram gives only the
+  three holes (B60). Blocks nothing. Built on the holes alone.
+- **Template download.** Download SVG saves one file per A4 page (B64). Would one multi-page PDF
+  suit the venue better? Blocks nothing. Built on one SVG per page (Q19).
 - **Best beest of the run.** The best beest panel (B48) shows the search's best in the latest
   generation (B36), which is also the best of the whole run for the GA with elite 1 or more under
   Jansen or fixed-limits normalisation. Should it show the run's best whatever the settings? Blocks
   nothing. Built on the latest generation's.
 - **Runs on one graph.** The graph keeps the last 8 runs (B47), a ninth taking the oldest's place.
   Is that enough for a lesson's comparisons? Blocks nothing. Built on 8.
-- **Template download.** Download SVG saves one file per A4 page (B64). Would one multi-page PDF
-  suit the venue better? Blocks nothing. Built on one SVG per page (Q19).
-- **Crank sticks.** The template asks for one crank stick m per pair, shared by both legs (B56).
-  Does each throw use two, one each side of the legs? Blocks nothing. Built on one per pair
-  (`STICKS_PER_PAIR["m"]`).
-- **Chassis.** What is the chassis made of, and from how many pieces? The diagram gives only the
-  three holes (B60). Blocks nothing. Built on the holes alone.
-- **Support check.** A beest tips when its centre of mass lies outside the feet within the down
-  tolerance of the lowest foot (B67). At 1 mm that tips 95% of random working legs within ±25% of
-  Jansen's, and Jansen's own 2-pair beest tips at 0.65 mm and below, though the arena spike walked a
-  2-pair beest. Is this the right check? Blocks nothing. Built on the plan's check.
 - **Arena tipping.** The arena counts a beest as fallen over once its chassis leans more than 30°
   or touches the ground (B70). Is 30° right, and should a beest resting on its chassis count as
   fallen over? Blocks nothing. Built on yes to both.
