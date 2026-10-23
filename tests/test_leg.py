@@ -4,7 +4,7 @@ import pytest
 from beest.geometry import HOLY, LENGTH_NAMES
 from beest.leg import (LENGTH_BOUNDS, MM_PER_UNIT, STICKS, Layout, jansen_lengths, leg_from)
 
-MEASURES = ("stride", "step_height", "time_down", "distance", "bob", "flatness")
+MEASURES = ("stride", "step_height", "time_down", "distance", "bob", "flatness", "upright")
 
 
 def with_length(name, value):
@@ -31,7 +31,8 @@ def test_jansen_leg():
     assert leg.flatness == leg.bob
     assert leg.step_height == pytest.approx(22.46 * MM_PER_UNIT, abs=0.1)
     assert leg.closest_to_jam == pytest.approx(1.19 * MM_PER_UNIT, abs=0.05)
-    assert leg.tips is None
+    assert leg.tips is False
+    assert leg.upright == 1.0
     assert leg.normalised == {}
 
 
@@ -44,6 +45,7 @@ def test_jammed_leg_measures_zero():
     for name in MEASURES:
         assert getattr(leg, name) == 0.0
     assert leg.closest_to_jam < 0
+    assert leg.tips is None
 
 
 def test_layouts():
@@ -68,6 +70,13 @@ def test_pairs_change_the_beest():
     assert one.distance == pytest.approx(125.96 * MM_PER_UNIT, rel=0.01)
     assert one.bob > three.bob
     assert one.stride == three.stride
+    assert one.tips and one.upright == 0.0
+    assert not three.tips
+
+
+def test_tolerance_decides_whether_two_pairs_tip():
+    assert leg_from(jansen_lengths(), Layout(2), tol=0.5).tips
+    assert not leg_from(jansen_lengths(), Layout(2), tol=1.0).tips
 
 
 def test_tolerance_changes_the_foot():

@@ -34,6 +34,8 @@ LEG_HELP = (
     ("leg.bob", "how far the body rises and falls in one turn, in mm (leg.flatness is the same)"),
     ("leg.closest_to_jam", "how near the tightest pair of sticks comes to not meeting, in mm"),
     ("leg.fits", "True when every stick fits on a lolly stick"),
+    ("leg.tips", "True when the beest would tip over somewhere in the turn (None when it jams)"),
+    ("leg.upright", "1 when the beest stays up all the way round, 0 when it tips or jams"),
     ('leg.normalised["stride"]', "an ingredient on the scale the Normalisation setting "
                                  "chooses, not flipped, so leg.normalised[\"flatness\"] is "
                                  "higher for a bumpier ride; the ingredients are "

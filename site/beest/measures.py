@@ -50,6 +50,20 @@ def beest_feet(foot: list[Point], phases_deg: list[float]) -> list[list[Point]]:
     return [[f for s in shifts for f in (foot[(t + s) % n], mirror[(t + s) % n])] for t in range(n)]
 
 
+def tips(feet: list[list[Point]], tol: float, com_x: float = 0.0) -> bool:
+    """Whether a level body over these feet tips over at any crank angle.
+
+    At each angle the supporting feet are those within `tol` of that angle's lowest foot. The
+    beest tips when `com_x` lies outside their x range; a foot exactly under it holds it up.
+    """
+    for at_angle in feet:
+        low = min(y for _, y in at_angle)
+        xs = [x for x, y in at_angle if y <= low + tol]
+        if not min(xs) <= com_x <= max(xs):
+            return True
+    return False
+
+
 @dataclass(frozen=True)
 class BeestMeasures:
     bob: float
