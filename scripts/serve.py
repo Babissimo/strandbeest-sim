@@ -31,6 +31,7 @@ TYPES = {
     ".zip": "application/zip",
     ".toml": "application/toml",
     ".py": "text/plain; charset=utf-8",
+    ".whl": "application/octet-stream",
     ".css": "text/css",
     ".html": "text/html; charset=utf-8",
 }
