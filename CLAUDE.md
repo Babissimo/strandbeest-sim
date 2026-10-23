@@ -31,6 +31,11 @@ answer you built on. When he is present, ask him rather than choosing.
   - `site/app/`: browser glue (PyScript, canvas drawing, the GA worker).
   - `site/vendor/`: PyScript, Pyodide and the arena's wheels (pymunk, cffi), fetched by
     `scripts/vendor.py`; gitignored.
+  - `site/_headers`: the isolation headers (and two types) Cloudflare sends; kept in step with
+    `scripts/serve.py` by `tests/test_headers.py`.
+- `deploy/`: the Cloudflare Worker that serves `site/` at https://strandbeests.babissimo.net
+  (`wrangler.jsonc`, wrangler pinned in `package.json`), deployed from `main` by
+  `.github/workflows/deploy.yml`; README.md has the details.
 - `scripts/`: `vendor.py`, `serve.py`, `survey_limits.py`, `cloud_setup.sh`.
 - `tests/`: pytest under CPython; `tests/e2e/` drives the page in Chromium (marked `e2e`).
 
