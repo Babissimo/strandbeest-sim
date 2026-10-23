@@ -260,8 +260,9 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   answers a start-up check, because PyScript reports a worker ready even when its script raised.
 - **B42 Fresh workers.** Stop, a worker whose call fails, and every run of editor code each get a
   fresh worker (editor code may have changed the engine's modules); settings runs reuse it.
-- **B43 Errors.** Settings and editor-code errors show beside Run and in `data-error`, without a
-  console log; faults in the simulator itself also go to the console, so browser tests fail on them.
+- **B43 Errors.** Settings errors show beside Run and editor-code errors under the editor (B52), both
+  in `data-error` and without a console log; faults in the simulator itself also go to the console,
+  so browser tests fail on them.
 - **B44 Settings panel.** Search, stop after, population, mutation rate and size, and seed are on
   show; Fitness (normalisation, weights, flips, fixed limits) and "More settings" (elite, crossover,
   gene mask, layout, down tolerance, jam margin) sit in closed sections. Ingredient lists come from
@@ -283,6 +284,25 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   from 0.
 - **B49 Throw placement.** `measures.throw_steps` places the crank throws for both the scoring and
   the drawing, so they agree.
+
+- **B50 Editor.** PyScript's own CodeMirror (the `codemirror` export of `vendor/pyscript/core.js`)
+  with line numbers, Python highlighting, 4-space indents and Tab to indent (Esc then Tab leaves
+  the editor). It loads with the page, about 450 KB from the vendored folder, so nothing more is
+  vendored.
+- **B51 Route.** "Score and mutate with: the settings / my code". On the code route the weights,
+  flips and mutation size are greyed out and not sent; normalisation and fixed limits stay in use
+  because they fill `leg.normalised`, and the mutation rate reaches the student's `mutate` as
+  `rate`. The route is remembered in browser storage, and code runs say "your code" in the legend.
+- **B52 Errors in the editor's code** show under the editor, with the line marked and scrolled into
+  view while the editor still holds the code that ran, and the traceback (quoting the editor's
+  lines) in a closed section. Generations already scored stay on the graph, labelled "(ended by an
+  error in your code)".
+- **B53 Storage.** The editor's text is saved in browser storage after each edit; the slide code
+  itself is never stored, so a changed `SOURCE` reaches students after a reload. If storage is
+  blocked or full, the editor starts from the slide code and says the browser is not keeping it.
+- **B54 Reset to slide code** asks first only when the text differs from the slide code.
+- **B55 Help.** A closed "What your code can use" section lists `leg`'s attributes with units,
+  `leg.normalised` (before flipping), `leg.genes` and `mutate`'s arguments.
 
 ## Questions for Al
 
@@ -324,3 +344,6 @@ Append any place where the simulator and the slides now differ.
   defined (B38).
 - A `fitness` that returns True or False is refused with a message (B37).
 - Hill climbing keeps the child on a tie (B35).
+- Tracebacks from the editor's code name the file `<editor>`.
+- On the code route the slide's `mutate` uses its own `gauss(0, 3)`, so the panel's mutation size
+  does not apply.
