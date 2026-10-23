@@ -7,6 +7,8 @@ from playwright.sync_api import Page, expect
 
 from beest import ga
 from beest.fitness import INGREDIENTS, FitnessSettings, fixed_limits
+from beest.geometry import LENGTH_NAMES
+from beest.leg import MM_PER_UNIT, jansen_lengths
 
 pytestmark = pytest.mark.e2e
 
@@ -159,6 +161,73 @@ def test_seed_repeats(evolve: Page) -> None:
         scores.append(mode(evolve).get_attribute("data-best-score"))
     assert scores[0] == scores[1]
     expect(evolve.locator(".ev-legend li").first).to_have_text("Run 1: GA, seed 7")
+
+
+def test_hill_climbing_starts_from_a_beest_that_turns(evolve: Page) -> None:
+    start = evolve.locator("#ev-start")
+    expect(start).to_have_value("random")
+    start.select_option("jansen")
+    evolve.locator("#ev-preset").select_option("hill")
+    expect(start).to_have_value("turning")
+    expect(evolve.locator("#ev-start-hint")).to_contain_text("costs no evaluations")
+    # Leaving hill climbing gives the start back, as it does the population.
+    evolve.locator("#ev-preset").select_option("ga")
+    expect(start).to_have_value("jansen")
+    # A start chosen while on hill climbing stays when it is left.
+    evolve.locator("#ev-preset").select_option("hill")
+    start.select_option("design")
+    evolve.locator("#ev-preset").select_option("ga")
+    expect(start).to_have_value("design")
+    start.select_option("jansen")
+    # Random search makes its copies of Jansen's leg with the mutation rate and size.
+    evolve.locator("#ev-preset").select_option("random")
+    expect(evolve.locator("#ev-rate")).to_be_enabled()
+    start.select_option("random")
+    expect(evolve.locator("#ev-rate")).to_be_disabled()
+
+
+def test_turning_start_repeats_the_engine(evolve: Page) -> None:
+    evolve.locator("#ev-start").select_option("turning")
+    evolve.locator("#ev-pop").fill("10")
+    stop_after(evolve, "generations", 3)
+    run_and_wait(evolve)
+    expected = ga.run(ga.RunSettings(start="turning", pop=10, generations=3))
+    expect(mode(evolve)).to_have_attribute("data-best-score", repr(expected.best_score))
+
+
+def test_design_start_takes_the_leg_tab(evolve: Page) -> None:
+    root = mode(evolve)
+    # Jansen's crank made 10% longer jams.
+    evolve.get_by_role("link", name="Leg", exact=True).click()
+    evolve.locator("#leg-m").fill(f"{16.5 * MM_PER_UNIT:g}")
+    expect(evolve.locator("#leg-mode")).to_have_attribute("data-jammed", "true")
+    evolve.get_by_role("link", name="Evolve", exact=True).click()
+    evolve.locator("#ev-start").select_option("design")
+    expect(root).to_have_attribute("data-design-jams", "true")
+    warning = evolve.locator(".ev-design-jams")
+    expect(warning).to_be_visible()
+    expect(warning).to_contain_text("The leg in the Leg tab jams: f and g")
+    # A design that turns clears the warning once Evolve is shown again.
+    evolve.get_by_role("link", name="Leg", exact=True).click()
+    evolve.locator("#leg-m").fill("18")
+    evolve.locator("#leg-j").fill("55")
+    expect(evolve.locator("#leg-mode")).to_have_attribute("data-jammed", "false")
+    evolve.get_by_role("link", name="Evolve", exact=True).click()
+    expect(root).to_have_attribute("data-design-jams", "false")
+    expect(warning).to_be_hidden()
+    # The warning follows the jam margin it is checked at.
+    evolve.locator("details", has_text="More settings").locator("summary").click()
+    evolve.locator("#ev-margin").fill("30")
+    expect(root).to_have_attribute("data-design-jams", "true")
+    evolve.locator("#ev-margin").fill("0")
+    expect(root).to_have_attribute("data-design-jams", "false")
+    evolve.locator("#ev-pop").fill("10")
+    stop_after(evolve, "generations", 3)
+    run_and_wait(evolve)
+    design = dict(zip(LENGTH_NAMES, jansen_lengths())) | {"m": 18.0, "j": 55.0}
+    expected = ga.run(ga.RunSettings(start="design", start_genes=list(design.values()), pop=10,
+                                     generations=3))
+    expect(root).to_have_attribute("data-best-score", repr(expected.best_score))
 
 
 def test_best_of_the_run_beside_the_latest(evolve: Page) -> None:

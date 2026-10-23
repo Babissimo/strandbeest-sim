@@ -83,6 +83,20 @@ def test_settings_error_comes_back_as_a_message():
     assert result["error"]["message"].startswith("elite (2) must be smaller than the population")
 
 
+def test_design_start_from_plain_values():
+    settings = job.settings_from_dict({"start": "design", "start_genes": [40.0] * 13})
+    assert settings == ga.RunSettings(start="design", start_genes=(40.0,) * 13)
+
+
+def test_start_that_cannot_be_made_comes_back_as_a_message():
+    # No leg keeps every pair of links 50 mm from failing to meet.
+    result, seen = carry_out({**SMALL, "start": "turning", "margin": 50})
+    assert seen == []
+    assert result["status"] == "error"
+    assert result["error"]["kind"] == "settings"
+    assert f"{ga.START_TRIES} tries" in result["error"]["message"]
+
+
 def test_student_source_runs():
     result, seen = carry_out(SMALL, SOURCE)
     assert result["status"] == "done"

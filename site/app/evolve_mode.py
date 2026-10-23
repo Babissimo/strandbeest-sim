@@ -10,8 +10,9 @@ running or error), generation and evaluations (of the latest report in the run),
 winner-turns and winner-fits (the latest generation's best), run-best-score,
 run-best-generation, run-winner-turns and run-winner-fits (the run's best), same-best (whether
 they are one beest), the crank's playing, angle and drawn-to, series (runs on the graph), points
-(in the latest run), graph-view, axis (the score axis's title), route (settings or code) and,
-when a run fails, error and, for an error in the editor's code with a line, error-line.
+(in the latest run), graph-view, axis (the score axis's title), route (settings or code),
+design-jams (while the start is the Leg tab's design) and, when a run fails, error and, for an
+error in the editor's code with a line, error-line.
 """
 from __future__ import annotations
 
@@ -36,8 +37,8 @@ from app.printing import TemplateButtons
 from app.storage import keep, recall
 from beest import ga
 from beest.fitness import INGREDIENTS, NORMALISATIONS, fixed_limits
-from beest.geometry import DRAW_ANGLES, JAM_MARGIN_MM, LENGTH_NAMES
-from beest.leg import DOWN_TOLERANCE_MM, LENGTH_BOUNDS, STICKS, Layout
+from beest.geometry import ANGLES, DRAW_ANGLES, JAM_MARGIN_MM, LENGTH_NAMES, trace_leg
+from beest.leg import DOWN_TOLERANCE_MM, LENGTH_BOUNDS, RANDOM_SPREAD, STICKS, Layout
 from beest.template import leg_template_svg
 
 WORKER = "./app/ga_worker.py"
@@ -63,6 +64,8 @@ UNUSED = {"ga": set(), "hill": {"pop", "elite", "crossover"},
 CODE_UNUSED = {"size", "weights"}
 # Hill climbing breeds one beest at a time by mutation only, and the panel shows that.
 HILL_SETTINGS = {"pop": 1, "elite": 0, "crossover": "none"}
+# Hill climbing starts from a beest that turns fully, though the student may change that.
+HILL_START = "turning"
 # Where the browser keeps the chosen route.
 ROUTE_KEY = "strandbeest-sim.route"
 # Choosing these presets sets "Stop after" to a number of evaluations.
@@ -70,6 +73,17 @@ COMPARED_BY_BUDGET = {"hill", "random"}
 # Each choice in a drop-down: its words, and a line saying what it does. A choice missing here
 # shows under the engine's own name.
 DESCRIBED: dict[str, dict[str, tuple[str, str]]] = {
+    "start": {
+        "random": ("Random beests",
+                   f"Every length is drawn at random, within {RANDOM_SPREAD:.0%} of Jansen's."),
+        "turning": ("Random, turning fully",
+                    "Random beests, each drawn again until it turns all the way round. Checking "
+                    "this costs no evaluations."),
+        "jansen": ("Jansen and mutants",
+                   "Jansen's own leg, and copies of it changed by mutation."),
+        "design": ("Leg tab design",
+                   "The leg you set up in the Leg tab, and copies of it changed by mutation."),
+    },
     "preset": {
         "ga": ("Genetic algorithm (GA)",
                "The beests that score best are the most likely to become parents."),
@@ -96,7 +110,8 @@ DESCRIBED: dict[str, dict[str, tuple[str, str]]] = {
         "none": ("None", "The child is a copy of one parent before it mutates."),
     },
 }
-CHOICES = {"preset": ga.PRESETS, "normalisation": NORMALISATIONS, "crossover": ga.CROSSOVERS}
+CHOICES = {"preset": ga.PRESETS, "start": ga.STARTS, "normalisation": NORMALISATIONS,
+           "crossover": ga.CROSSOVERS}
 TICK, CROSS = "✓", "✗"
 
 
@@ -173,6 +188,8 @@ def panel_html() -> str:
     the fitness weights and the mutation size.</small>
 </fieldset>
 {_select("preset", "Search", default.preset)}
+{_select("start", "Start from", default.start)}
+<p class="warning ev-design-jams" role="status" hidden></p>
 <fieldset class="field" data-setting="limit">
   <legend>Stop after</legend>
   <label class="choice"><input type="radio" name="ev-limit" value="generations" checked>
@@ -231,11 +248,21 @@ def panel_html() -> str:
 
 
 class SettingsForm:
-    """The settings panel, turned into RunSettings on demand."""
+    """The settings panel, turned into RunSettings on demand.
 
-    def __init__(self, panel):
+    `design` gives the Leg tab's 13 lengths, a to m, for the "design" start; without it that
+    start cannot be chosen. `on_start` runs when the start, or the jam margin it is checked at,
+    changes.
+    """
+
+    def __init__(self, panel, design: Callable[[], list[float]] | None = None,
+                 on_start: Callable[[], None] | None = None):
         self.panel = panel
+        self.design = design
+        self.on_start = on_start
         panel.innerHTML = panel_html()
+        if design is None:
+            self._get("start").querySelector('option[value="design"]').disabled = True
         self.preset = self._get("preset").value
         # "settings" or "code": what scores and mutates the beests.
         self.route = "settings"
@@ -245,6 +272,8 @@ class SettingsForm:
         self._limits_shown = {key: self._get(key).value for name in INGREDIENTS
                               for key in (f"lo-{name}", f"hi-{name}")}
         self._proxies = [listen(self._get("preset"), "change", self._preset_changed),
+                         listen(self._get("start"), "change", self._start_changed),
+                         listen(self._get("margin"), "input", self._margin_changed),
                          listen(self._get("normalisation"), "change", self._normalisation_changed)]
         for key in CHOICES:
             self._proxies.append(listen(self._get(key), "change",
@@ -263,20 +292,52 @@ class SettingsForm:
         """Grey out what the chosen preset ignores; hill climbing shows its own values."""
         chosen = self._get("preset").value
         if chosen == "hill" and self.preset != "hill":
-            self._saved = {key: self._get(key).value for key in HILL_SETTINGS}
-            for key, value in HILL_SETTINGS.items():
+            self._saved = {key: self._get(key).value for key in (*HILL_SETTINGS, "start")}
+            for key, value in (HILL_SETTINGS | {"start": HILL_START}).items():
                 self._get(key).value = str(value)
-            self._describe("crossover")
+            self._described_again()
         elif chosen != "hill" and self.preset == "hill":
             for key, value in self._saved.items():
-                self._get(key).value = value
-            self._describe("crossover")
+                # A start chosen while on hill climbing stays.
+                if key != "start" or self.start == HILL_START:
+                    self._get(key).value = value
+            self._described_again()
         if chosen in COMPARED_BY_BUDGET:
             # Searches are compared on the same number of evaluations (decisions Q17), and
             # hill climbing's 40 generations would be only 40 beests.
             self._choose_limit("budget")
         self.preset = chosen
         self._grey_out()
+
+    def _described_again(self) -> None:
+        """After hill climbing filled in or gave back its settings."""
+        self._describe("crossover")
+        self._describe("start")
+        if self.on_start is not None:
+            self.on_start()
+
+    @property
+    def start(self) -> str:
+        return self._get("start").value
+
+    def _start_changed(self, event=None) -> None:
+        self._grey_out()
+        if self.on_start is not None:
+            self.on_start()
+
+    def _margin_changed(self, event=None) -> None:
+        if self.on_start is not None:
+            self.on_start()
+
+    def design_genes(self) -> list[float]:
+        return [float(x) for x in self.design()]
+
+    def margin(self) -> float:
+        """The jam margin in its box, or the engine's when the box holds no usable number."""
+        try:
+            return self._read("margin", "Jam margin", low=0)
+        except ValueError:
+            return JAM_MARGIN_MM
 
     def set_route(self, route: str) -> None:
         """Choose what scores and mutates the beests, "settings" or "code"."""
@@ -289,7 +350,11 @@ class SettingsForm:
     def unused(self) -> set[str]:
         """The settings the chosen preset, on the chosen route, does not use."""
         preset = self._get("preset").value
-        return UNUSED.get(preset, set()) | (CODE_UNUSED if self.route == "code" else set())
+        unused = UNUSED.get(preset, set()) | (CODE_UNUSED if self.route == "code" else set())
+        # The copies of Jansen's leg or the design are made with the engine's mutate; hill
+        # climbing starts from the leg itself and makes none.
+        copies = self.start in ga.LEG_STARTS and preset != "hill"
+        return unused - {"rate", "size"} if copies else unused
 
     def _grey_out(self) -> None:
         unused = self.unused()
@@ -343,7 +408,10 @@ class SettingsForm:
             "tol": self._read("tol", "Down tolerance", False, *TOLERANCE_BOUNDS),
             "margin": self._read("margin", "Jam margin", low=0),
             "layout_mutates": "layout" not in unused and bool(self._get("layout").checked),
+            "start": self.start,
         }
+        if self.start == "design":
+            settings["start_genes"] = self.design_genes()
         if budget:
             settings["budget"] = self._read("budget", "Evaluations", True, 1)
         else:
@@ -463,9 +531,11 @@ class Run:
 
 class EvolveMode:
     """`on_best` is given the run's best beest each time the panel shows the bests: its 13
-    lengths and its layout."""
+    lengths and its layout. `design` gives the Leg tab's lengths by name, for the "design" start.
+    """
 
-    def __init__(self, root, on_best: Callable[[list[float], Layout], None] | None = None):
+    def __init__(self, root, on_best: Callable[[list[float], Layout], None] | None = None,
+                 design: Callable[[], dict[str, float]] | None = None):
         self.root = root
         self.on_best = on_best
         self.status = ""
@@ -489,7 +559,11 @@ class EvolveMode:
         # Tasks still running; asyncio itself keeps only weak references to them.
         self._tasks: set[asyncio.Future] = set()
         self._pyodide = window.URL.new(PYODIDE, document.baseURI).href
-        self.form = SettingsForm(root.querySelector(".controls"))
+        design_genes = None if design is None else (
+            lambda: [design()[name] for name in LENGTH_NAMES])
+        self.form = SettingsForm(root.querySelector(".controls"), design_genes,
+                                 self._check_design)
+        self.design_warning = root.querySelector(".ev-design-jams")
         stage = root.querySelector(".stage")
         stage.innerHTML = STAGE_HTML
         self.code = CodePanel(stage, on_reset=self._code_reset)
@@ -520,6 +594,8 @@ class EvolveMode:
             listen(root.querySelector(".ev-clear"), "click", self._clear_clicked),
             listen(canvas, "pointermove", self._hover),
             listen(canvas, "pointerleave", self._hover),
+            # The Leg tab's design may have changed while this mode was hidden.
+            listen(window, "hashchange", self._check_design),
         ]
         for radio in root.querySelectorAll('input[name="ev-view"]'):
             self._proxies.append(listen(radio, "change", self._view_changed))
@@ -583,6 +659,7 @@ class EvolveMode:
     # Run, Stop and Clear graph
 
     def _run_clicked(self, event=None) -> None:
+        self._check_design()
         self.start_run(self.code.text if self.form.route == "code" else None)
 
     def start_run(self, source: str | None = None) -> bool:
@@ -886,6 +963,24 @@ class EvolveMode:
         leaving = event.type == "pointerleave"
         self.graph.hover = None if leaving else (float(event.offsetX), float(event.offsetY))
         self._schedule()
+
+    def _check_design(self, event=None) -> None:
+        """Warns, while the run is to start from the Leg tab's design, when that leg jams."""
+        if self.root.hidden:
+            return
+        reason = None
+        if self.form.start == "design":
+            # As the run starts from it.
+            lengths = dict(zip(LENGTH_NAMES, ga.clamp(self.form.design_genes())))
+            trace = trace_leg(lengths, ANGLES, self.form.margin())
+            reason = trace.jam_reason if trace.jammed else None
+            self._mirror("design-jams", str(trace.jammed).lower())
+        else:
+            self._forget("design-jams")
+        self.design_warning.hidden = reason is None
+        self.design_warning.textContent = (
+            "" if reason is None else f"The leg in the Leg tab jams: {reason}. Its copies may "
+                                      f"jam too, and a beest that jams scores 0.")
 
     def _code_reset(self) -> None:
         # A message about the student's own code goes with it; one about the settings stays.

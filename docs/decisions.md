@@ -236,9 +236,9 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B30 Limits.** Reversed limits are swapped; equal limits give 0 below, 0.5 at and 1 above.
 - **B31 Jansen's reference leg** uses jam margin 0 whatever the run's margin, since a margin above
   1.43 mm jams Jansen's own leg.
-- **B32 Gene mask.** Lengths left out of the mask hold Jansen's value in every beest (generation 0
-  draws only the masked-in lengths) and are restored from the first parent after crossover and
-  mutation.
+- **B32 Gene mask.** Lengths left out of the mask hold the starting leg's value in every beest
+  (Jansen's, or the design's under the Leg tab start, B90; generation 0 draws only the masked-in
+  lengths) and are restored from the first parent after crossover and mutation.
 - **B33 Layouts.** Every beest starts on the standard layout and only mutation changes it, so random
   search never varies layouts; a child takes a random parent's layout. With probability `RATE` the
   number of pairs moves by ±1 (throws evenly spaced again); otherwise each throw after the first
@@ -275,9 +275,11 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   `fitness.INGREDIENTS`. The form keeps mutation rate within 0–1 and down tolerance within the leg
   playground's bounds (B24); every other limit shows the engine's own message.
 - **B45 Presets.** Hill climbing shows population 1, elite 0 and crossover none (`HILL_SETTINGS`)
-  and gives the GA's values back when left. Choosing hill or random switches "Stop after" to 1,500
-  evaluations, and the GA keeps that, so all three compare on one budget. Settings a preset ignores
-  are greyed out.
+  and starts from "Random, turning fully" (`HILL_START`, B88), which the student can change; it
+  gives the GA's values back when left, keeping a start chosen meanwhile. Choosing hill or random
+  switches "Stop after" to 1,500 evaluations, and the GA keeps that, so all three compare on one
+  budget. Settings a preset ignores are greyed out. Changed by Al (hill climbing starts from the
+  first beest that turns fully).
 - **B46 Fixed limits** show to 4 significant figures; a box left as shown sends the exact surveyed
   value.
 - **B47 Graph.** It keeps the last 8 runs (`MAX_SERIES`, one per colour); best is solid, average
@@ -430,6 +432,23 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B87 One crank in Evolve.** The two best beests share one Play button, speed and crank angle, so
   they turn in step. A jammed beest there turns as far as the jam and waits until the crank comes
   round again, rather than swinging back as in the four-bar and leg tabs (B19).
+- **B88 Start from.** Evolve's "Start from" (`RunSettings.start`, `STARTS`) is "Random beests" (S7,
+  the default), "Random, turning fully", "Jansen and mutants" or "Leg tab design". Each random beest
+  of the turning start is drawn again until it turns fully, at most 500 times (`START_TRIES`); the
+  run then stops with a plain message beside Run, as for a refused setting. The legs built to check
+  are the ones scored, and checking is not an evaluation.
+- **B89 Random search** makes every generation's newcomers the way the run starts: random, random
+  until they turn, or mutated copies of Jansen's leg or the design, so it samples around the
+  starting leg when one is chosen. The starting leg itself is scored only in generation 0.
+- **B90 Mutant starts.** The first beest is the leg itself (Jansen's, or the Leg tab's lengths in
+  `start_genes`, clamped) and the rest are the engine's `mutate` of it at the run's rate and size,
+  on the code route too; lengths outside the mask keep the leg's. The rate and size boxes stay in
+  use for these starts under random search and on the code route, but not for hill climbing, which
+  starts from the leg itself.
+- **B91 Design check.** When the start is the Leg tab design, Evolve traces it at the GA's angles
+  and the panel's jam margin when the start or the margin is chosen, when the tab is shown and
+  when Run is pressed, and warns in words if it jams (`data-design-jams`); the run still goes
+  ahead.
 
 ## Questions for Al
 
@@ -448,10 +467,6 @@ Most important first, each with what it blocks and the provisional answer the bu
   deploying: nothing is deployed, and the course needs the page on a URL the students' machines can
   reach by Tuesday. Built on static files with a `_headers` file for Cloudflare; the GA worker was
   built and tested with the two isolation headers, which GitHub Pages cannot send.
-- **Hill climbing from a jammed start.** A random start jams 81% of the time, and on 2 of 10 seeds
-  (the default seed 1 among them) hill climbing is still at 0 after 1,500 evaluations. Option: start
-  from the first random beest that turns fully (checking costs no fitness call). Blocks nothing, but
-  makes Wednesday's comparison lopsided. Built on pure hill climbing.
 - **Support check.** A beest tips when its centre of mass lies outside the feet within the down
   tolerance of the lowest foot (B67). At 1 mm that tips 95% of random working legs within ±25% of
   Jansen's, and Jansen's own 2-pair beest tips at 0.65 mm and below, though the arena walks a

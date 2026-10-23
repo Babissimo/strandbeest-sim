@@ -4,6 +4,7 @@ import math
 import pickle
 import random
 import traceback
+from dataclasses import replace
 from fractions import Fraction
 
 import pytest
@@ -238,6 +239,83 @@ def test_report_matches_its_best_beest():
         assert (final.best_jams, final.best_fits) == (leg.jams, leg.fits)
 
 
+def scored(settings, record=lambda leg: leg):
+    """Every beest the run scores, in order, as `record` gives it, and the run's reports."""
+    calls = []
+
+    def fitness(leg):
+        calls.append(record(leg))
+        return leg.distance
+
+    return calls, reports(settings, fitness)
+
+
+def test_random_start_is_the_default():
+    assert ga.RunSettings().start == "random"
+    assert reports(ga.RunSettings(start="random", **SMALL)) == reports(ga.RunSettings(**SMALL))
+
+
+def test_turning_start_scores_only_beests_that_turn():
+    calls, seen = scored(ga.RunSettings(start="turning", pop=20, generations=1),
+                         lambda leg: leg.jams)
+    # Checking for jams scores nothing.
+    assert seen[-1].evaluations == len(calls) == 20
+    assert not any(calls)
+    # A random start jams most of the time.
+    calls, _ = scored(ga.RunSettings(pop=20, generations=1), lambda leg: leg.jams)
+    assert sum(calls) > 10
+
+
+def test_turning_start_gives_up_plainly():
+    # No leg keeps every pair of links 50 mm from failing to meet.
+    calls = []
+    with pytest.raises(ga.StartError, match=f"{ga.START_TRIES} tries"):
+        ga.run(ga.RunSettings(start="turning", margin=50, **SMALL), calls.append)
+    assert calls == []
+
+
+@pytest.mark.parametrize("start", ["jansen", "design"])
+def test_leg_and_mutants_start(start):
+    design = [x * 1.05 for x in jansen_lengths()]
+    leg = jansen_lengths() if start == "jansen" else design
+    settings = ga.RunSettings(start=start, start_genes=design, pop=10, generations=1, rate=0.5,
+                              size=2.0, mask=frozenset("bcd"))
+    calls, _ = scored(settings, lambda leg: list(leg.genes))
+    assert calls[0] == leg
+    for genes in calls[1:]:
+        assert in_bounds(genes)
+        # Lengths outside the mask keep the leg's own.
+        assert [x for name, x in zip(LENGTH_NAMES, genes) if name not in "bcd"] == [
+            x for name, x in zip(LENGTH_NAMES, leg) if name not in "bcd"]
+    assert any(genes != leg for genes in calls[1:])
+    # Mutated with the engine's mutate at the run's rate and size, so a rate of 0 copies the leg.
+    calls, _ = scored(replace(settings, rate=0), lambda leg: list(leg.genes))
+    assert all(genes == leg for genes in calls)
+
+
+def test_start_repeats_with_seed():
+    for start in ga.STARTS:
+        settings = ga.RunSettings(start=start, start_genes=jansen_lengths(), seed=5, **SMALL)
+        assert reports(settings) == reports(settings)
+
+
+def test_hill_climbing_starts_from_the_start():
+    seen = reports(ga.RunSettings(preset="hill", start="jansen", **SMALL))
+    assert seen[0].best_genes == jansen_lengths()
+    _, seen = scored(ga.RunSettings(preset="hill", start="turning", **SMALL))
+    assert not seen[0].best_jams
+
+
+def test_random_search_draws_as_it_starts():
+    # Every generation's newcomers are made the way the first ones were.
+    calls, _ = scored(ga.RunSettings(preset="random", start="turning", pop=8, generations=4),
+                      lambda leg: leg.jams)
+    assert len(calls) == 32 and not any(calls)
+    calls, _ = scored(ga.RunSettings(preset="random", start="jansen", rate=0, pop=8,
+                                     generations=4), lambda leg: list(leg.genes))
+    assert all(genes == jansen_lengths() for genes in calls)
+
+
 def test_run_best_keeps_a_beest_the_ga_lost():
     # Without elites the GA's best in generation 0 is not carried on, and later ones score lower.
     seen = reports(ga.RunSettings(elite=0, seed=2, **SMALL))
@@ -461,7 +539,9 @@ def test_report_is_plain():
                                  {"budget": 0}, {"elite": -1}, {"tol": -1}, {"pop": 2},
                                  {"size": math.nan}, {"rate": -0.1}, {"tol": math.nan},
                                  {"margin": math.inf}, {"pop": 30.5}, {"budget": True},
-                                 {"generations": 2.0}])
+                                 {"generations": 2.0}, {"start": "best"}, {"start": "design"},
+                                 {"start_genes": [1.0] * 12}, {"start_genes": [math.nan] * 13},
+                                 {"start_genes": [True] * 13}])
 def test_bad_settings_are_refused(bad):
     with pytest.raises(ValueError):
         ga.RunSettings(**bad)

@@ -30,6 +30,13 @@ BUDGET = 1500
 PHASE_SIZE = 15.0
 PRESETS = ("ga", "hill", "random")
 CROSSOVERS = ("uniform", "blend", "triangles", "none")
+# How a run makes its first beests: "random" draws each length within RANDOM_SPREAD of Jansen's;
+# "turning" draws again until the beest turns fully; "jansen" and "design" take Jansen's leg or
+# RunSettings.start_genes, then mutated copies of it.
+STARTS = ("random", "turning", "jansen", "design")
+LEG_STARTS = frozenset({"jansen", "design"})
+# A beest that turns fully is drawn at most this many times before the run gives up.
+START_TRIES = 500
 # Under "triangles" crossover each triangle's three sides come from the same parent.
 TRIANGLES = ("bde", "ghi")
 
@@ -128,7 +135,12 @@ class RunSettings:
     so far are scored again beside each generation's newcomers.
     budget: when set, the run makes as many fitness evaluations as this allows, whatever
     `generations` says, and never more; the last generation is cut short to fit.
-    mask: the lengths that may change. The others hold Jansen's value in every beest.
+    mask: the lengths that may change. The others hold the starting leg's value (Jansen's, or
+    start_genes for the "design" start) in every beest.
+    start: how the first beests are made (STARTS). Under "jansen" and "design" the first is the
+    leg itself and the rest are copies put through `mutate` at `rate` and `size`. Random search
+    makes every generation's newcomers the same way. Checking whether a beest turns fully is not
+    an evaluation. start_genes: the 13 lengths of the "design" start.
     tol: how close to its lowest point a foot counts as down, in mm. margin: see leg_from.
     """
     preset: str = "ga"
@@ -145,11 +157,23 @@ class RunSettings:
     fitness: FitnessSettings = field(default_factory=FitnessSettings)
     tol: float = DOWN_TOLERANCE_MM
     margin: float = JAM_MARGIN_MM
+    start: str = "random"
+    start_genes: tuple[float, ...] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "mask", frozenset(self.mask))
         if self.preset not in PRESETS:
             raise ValueError(f"preset must be one of {', '.join(PRESETS)}, not {self.preset!r}")
+        if self.start not in STARTS:
+            raise ValueError(f"start must be one of {', '.join(STARTS)}, not {self.start!r}")
+        if self.start_genes is not None:
+            numbers = [_number(x) for x in self.start_genes]
+            if len(numbers) != len(LENGTH_NAMES) or None in numbers:
+                raise ValueError(f"start_genes must be {len(LENGTH_NAMES)} ordinary numbers, "
+                                 f"a to m, not {self.start_genes!r}")
+            object.__setattr__(self, "start_genes", tuple(numbers))
+        elif self.start == "design":
+            raise ValueError("the design start needs start_genes, the design's 13 lengths")
         if self.crossover not in CROSSOVERS:
             raise ValueError(f"crossover must be one of {', '.join(CROSSOVERS)}, "
                              f"not {self.crossover!r}")
@@ -231,6 +255,10 @@ class StudentCodeError(Exception):
         return self.message
 
 
+class StartError(ValueError):
+    """The run could not make a beest the way its start asks, such as one that turns fully."""
+
+
 def _editor_line(fn: object) -> int | None:
     code = getattr(fn, "__code__", None)
     return code.co_firstlineno if code is not None and code.co_filename == EDITOR else None
@@ -309,6 +337,9 @@ class _Search:
         self.mutate_fn = mutate_fn
         # Jansen's reference beest turns fully whatever the run's jam margin.
         self.jansen = leg_from(jansen_lengths(), tol=settings.tol)
+        # The leg the run starts from, whose lengths outside the mask every beest keeps.
+        self.base = (clamp(list(settings.start_genes)) if settings.start == "design"
+                     else list(self.jansen.genes))
         self.fixed = [name not in settings.mask for name in LENGTH_NAMES]
         # Under per-generation normalisation the beest a search keeps is scored again each generation.
         self.together = settings.fitness.normalisation == "generation"
@@ -316,6 +347,8 @@ class _Search:
         self.evaluations = 0
         # The beests built for the last generation, by genes and layout; leg_from is deterministic.
         self.built: dict[tuple[tuple[float, ...], Layout], _Beest] = {}
+        # Newcomers already built to check that they turn fully, until the next build.
+        self.checked: dict[tuple[tuple[float, ...], Layout], _Beest] = {}
         # The run's best beest so far, its score and the generation it first led.
         self.run_best: tuple[_Beest, float, int] | None = None
 
@@ -331,10 +364,34 @@ class _Search:
             return wanted
         return min(wanted, self.settings.budget - self.evaluations)
 
+    def kept_outside_mask(self, genes: list[float]) -> list[float]:
+        return [b if fixed else x for x, b, fixed in zip(genes, self.base, self.fixed)]
+
+    def first(self, wanted: int) -> list[Plan]:
+        """The first generation: the starting leg itself, when the start has one, then newcomers."""
+        own = self.settings.start in LEG_STARTS and wanted > 0
+        plans = [(list(self.base), Layout())] if own else []
+        return plans + [self.newcomer() for _ in range(wanted - len(plans))]
+
     def newcomer(self) -> Plan:
-        """Random lengths where the mask allows, Jansen's elsewhere, on the standard layout."""
-        genes = [j if fixed else x for x, j, fixed in zip(random_genes(), self.jansen.genes, self.fixed)]
-        return genes, Layout()
+        """A new beest on the standard layout, made the way the run starts (RunSettings.start).
+
+        Raises StartError when START_TRIES random beests in a row jam under the "turning" start.
+        """
+        s = self.settings
+        if s.start in LEG_STARTS:
+            return self.kept_outside_mask(mutate(list(self.base), s.rate, s.size)), Layout()
+        for _ in range(START_TRIES):
+            genes = self.kept_outside_mask(random_genes())
+            if s.start == "random":
+                return genes, Layout()
+            key = (tuple(genes), Layout())
+            beest = _Beest(key[0], key[1], leg_from(genes, key[1], s.tol, margin=s.margin))
+            if not beest.leg.jams:
+                self.checked[key] = beest
+                return genes, key[1]
+        raise StartError(f"No random beest that turns fully came up in {START_TRIES} tries. Let "
+                         f"more lengths change, or make the jam margin smaller.")
 
     def mutant(self, genes: list[float], layout: Layout, parent: tuple[float, ...]) -> Plan:
         """New `genes` put through mutate, with the masked lengths taken back from `parent`."""
@@ -349,12 +406,13 @@ class _Search:
         for genes, layout in plans:
             key = (tuple(genes), layout)
             if key not in built:
-                beest = self.built.get(key)
+                beest = self.built.get(key) or self.checked.get(key)
                 if beest is None:
                     leg = leg_from(genes, layout, self.settings.tol, margin=self.settings.margin)
                     beest = _Beest(key[0], layout, leg)
                 built[key] = beest
         self.built = built
+        self.checked = {}
         return [built[tuple(genes), layout] for genes, layout in plans]
 
     def score(self, beests: list[_Beest]) -> list[float]:
@@ -392,7 +450,7 @@ class _Search:
         return report
 
     def ga(self) -> Iterator[Report]:
-        population = self.build([self.newcomer() for _ in range(self.room(self.settings.pop))])
+        population = self.build(self.first(self.room(self.settings.pop)))
         while True:
             scores = self.score(population)
             leader, top = best(population, scores)
@@ -418,7 +476,7 @@ class _Search:
         return plans
 
     def hill(self) -> Iterator[Report]:
-        [parent] = self.build([self.newcomer()])
+        [parent] = self.build(self.first(1))
         [parent_score] = self.score([parent])
         yield self.report(parent, parent_score, [parent_score])
         while self.more(2 if self.together else 1):
@@ -438,7 +496,9 @@ class _Search:
         while True:
             kept = [champion] if self.together and champion is not None else []
             wanted = self.room(self.settings.pop + len(kept)) - len(kept)
-            entrants = kept + self.build([self.newcomer() for _ in range(wanted)])
+            newcomers = (self.first(wanted) if self.generation == 0
+                         else [self.newcomer() for _ in range(wanted)])
+            entrants = kept + self.build(newcomers)
             scores = self.score(entrants)
             if kept:
                 record = scores[0]
