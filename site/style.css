@@ -276,6 +276,51 @@ legend {
   border: 0;
 }
 
+.warning:empty:first-child + * {
+  margin-top: 0;
+}
+
+.readout > p + table,
+.readout > table + p {
+  margin-top: 0.5rem;
+}
+
+.measures {
+  align-self: flex-start;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.measures th,
+.measures td {
+  padding: 0.2rem 1.25rem 0.2rem 0;
+  text-align: left;
+}
+
+.measures thead th {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.measures tbody th {
+  font-weight: 600;
+}
+
+.measures td:nth-child(2) {
+  font-weight: 600;
+}
+
+.measures td:nth-child(3) {
+  color: var(--muted);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .badge {
   align-self: flex-start;
   padding: 0.2rem 0.75rem;

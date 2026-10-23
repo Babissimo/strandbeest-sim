@@ -9,8 +9,10 @@ from pyscript import document
 
 # An error setting up a mode stops here, before the status says ready.
 from app.fourbar_mode import FourBarMode
+from app.leg_mode import LegMode
 
-modes = [FourBarMode(document.getElementById("fourbar-mode"))]
+modes = [FourBarMode(document.getElementById("fourbar-mode")),
+         LegMode(document.getElementById("leg-mode"))]
 
 status = document.getElementById("status")
 status.dataset.python = ".".join(str(part) for part in sys.version_info[:3])

@@ -137,6 +137,16 @@ class Slider:
             self.on_change()
 
 
+def announce(region, text: str) -> None:
+    """Puts `text` in a live region, such as a jam warning, only when it changes.
+
+    The region stays on the page while empty (out of sight), so screen readers announce it as it
+    fills, and a drag that keeps the same text is not announced again.
+    """
+    if region.textContent != text:
+        region.textContent = text
+
+
 def swings(trace: FourBarTrace | LegTrace) -> str:
     """What Animator does with a jammed trace, as a sentence to follow its jam warning."""
     if len(trace.angles) < 2:
@@ -182,6 +192,8 @@ class Animator:
 
     def load(self, angles: list[float], per_turn: int, loops: bool) -> None:
         """Animates a new trace, keeping the crank near where it was."""
+        # The same angle at the new number of samples a turn.
+        self.position *= per_turn / self.per_turn
         self.angles, self.per_turn, self.loops = angles, per_turn, loops
         count = len(angles)
         if count == 0:

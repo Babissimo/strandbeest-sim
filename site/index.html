@@ -60,11 +60,51 @@
       <div class="intro">
         <h2 id="leg-heading">Jansen leg</h2>
         <p>Theo Jansen's leg, with every length in mm. Change any of them and see how the foot moves:
-          how long its stride is, how high it lifts, and whether the leg jams.</p>
+          how long its stride is, how high it lifts, and whether the leg jams. The body is held
+          still here, so the foot moves backwards along the ground while the beest walks forwards.</p>
       </div>
       <div class="workspace">
-        <div class="controls"></div>
-        <div class="stage"></div>
+        <div class="controls">
+          <fieldset id="leg-lengths">
+            <legend>Lengths in mm, hole to hole</legend>
+            <p class="hint">a and l place the fixed pivot from the crank's axle; m is the crank.
+              The letters match the drawing.</p>
+          </fieldset>
+          <div class="buttons">
+            <button type="button" id="leg-reset" disabled>Reset to Jansen</button>
+          </div>
+          <fieldset id="leg-down">
+            <legend>When is the foot down?</legend>
+            <p class="hint">While it is within this many mm of its lowest point (the shaded band).</p>
+          </fieldset>
+          <div class="playback">
+            <button type="button" class="play" disabled>Pause</button>
+            <label class="speed-label">Speed
+              <input type="range" class="speed" min="1" max="60" step="1" value="15" disabled>
+            </label>
+            <output class="speed-shown">15 turns a minute</output>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="readout">
+            <p id="leg-jam" class="warning" role="status"></p>
+            <table class="measures">
+              <thead>
+                <tr><td></td><th scope="col">This leg</th><th scope="col">Jansen's</th></tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">Stride</th><td id="leg-stride"></td><td id="leg-jansen-stride"></td></tr>
+                <tr><th scope="row">Step height</th><td id="leg-step-height"></td><td id="leg-jansen-step-height"></td></tr>
+                <tr><th scope="row">Time down</th><td id="leg-time-down"></td><td id="leg-jansen-time-down"></td></tr>
+                <tr><th scope="row">Closest to jam</th><td id="leg-closest-to-jam"></td><td id="leg-jansen-closest-to-jam"></td></tr>
+              </tbody>
+            </table>
+            <p class="hint">Stride: how far the foot moves while it is down. Step height: how high
+              it lifts. Time down: how much of each turn it is down. Closest to jam: how near the
+              tightest pair of sticks comes to not meeting.</p>
+          </div>
+          <canvas role="img" aria-label="The leg turning, with the path of its foot"></canvas>
+        </div>
       </div>
     </section>
 
