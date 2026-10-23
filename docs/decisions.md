@@ -203,6 +203,16 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   (default 15). The keyboard moves through the number boxes rather than the sliders, and jam
   warnings are announced to screen readers.
 
+- **B21 Two traces in the playground.** The numbers, down band and stride come from a trace at `ANGLES`,
+  as the GA scores, and the drawing from one at `DRAW_ANGLES`; a leg counts as jammed if either
+  jams (about 1 random leg in 2,000–7,000 jams at one sampling only). Jansen's stride shows as
+  65.7 mm (66.1 at 360 angles).
+- **B22 A jammed leg** shows "jams" in place of every measure and leaves the `data-*` measures empty;
+  the warning names the jam from the trace on screen.
+- **B23 Jansen beside the leg.** The playground shows Jansen's own measures at the current tolerance
+  next to the leg's, for "Beat Jansen by hand". "Reset to Jansen" leaves the tolerance alone.
+- **B24 Tolerance slider** bounds are `TOLERANCE_BOUNDS = (0.5, 4.0)` in `app/leg_mode.py`.
+
 ## Questions for Al
 
 Append questions here as they arise, most important first, each with what it blocks and the
