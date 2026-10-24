@@ -189,6 +189,20 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   `page_errors_expected`. CI keeps a Playwright trace of each failed browser test and stops the
   browser job after 20 minutes.
 
+- **B17 Four-bar defaults.** Ground 60, crank 20, coupler 60 and rocker 50 mm, with the tracing point
+  30 mm along and 0 sideways: a crank-rocker with an oval path (`DEFAULT_LENGTHS`, `DEFAULT_ALONG`,
+  `DEFAULT_OFFSET` in `app/fourbar_mode.py`).
+- **B18 Tracing point reach.** Along runs from −1 to 2 coupler lengths and sideways ±1 coupler length
+  (`ALONG_SPAN`, `OFFSET_SPAN`); positive sideways is to the left of the coupler, looking from the
+  crank end.
+- **B19 Jammed animation.** A jammed linkage swings between 0° and its last angle before the jam,
+  since the trace runs forwards only. One that jams at 0° is drawn still, and the four-bar then
+  shows the coupler's and rocker's circles that fail to meet.
+- **B20 Number boxes.** Every slider has a number box; typed values keep two decimals and are clamped
+  to the bounds when the box is left. Sliders step 0.1 mm and speed runs 1–60 turns a minute
+  (default 15). The keyboard moves through the number boxes rather than the sliders, and jam
+  warnings are announced to screen readers.
+
 ## Questions for Al
 
 Append questions here as they arise, most important first, each with what it blocks and the
