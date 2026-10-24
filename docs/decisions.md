@@ -304,6 +304,40 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 - **B55 Help.** A closed "What your code can use" section lists `leg`'s attributes with units,
   `leg.normalised` (before flipping), `leg.genes` and `mutate`'s arguments.
 
+- **B56 Stick counts.** Sticks b to k are made 2 per pair (one per leg) and the crank m 1 per pair,
+  since both legs of a pair share a crank tip (`STICKS_PER_PAIR`).
+- **B57 Triangles.** The triangles b–d–e and g–i–h print as three separate sticks each; every label
+  names the joints at its holes ("G to J2", `LEG_STICK_ENDS`) in place of a drawing of the
+  assembled leg.
+- **B58 Template page.** 10 mm margins; each stick is a 10 mm wide outline with rounded ends, each
+  hole a 3 mm circle with a 6 mm cross, the label above the stick and its letter also on it when it
+  fits. Two sticks drawn 90 mm wide or less share a row, the chassis comes last, and a row that
+  would cross the bottom margin starts a new page.
+- **B59 Calibration bar** on every page, with 10 mm ticks, "This bar should be 100 mm long: check it
+  with a ruler before you drill." and the page number, since pages are separated at the drill.
+- **B60 Chassis diagram** at 1:1, labelled "O (crank axle)", "G" and "G (mirrored leg)" (each label
+  pointing away from the other pivot), with a caption giving a and l. When it is wider than the
+  page (a about 70 mm or more) it is turned a quarter turn and says so. It gives no count of
+  chassis pieces.
+- **B61 Unprintable input** raises ValueError rather than being clipped or shrunk: a stick over
+  180 mm, a chassis too big even when turned, a length that is not a positive finite number, or
+  other than 13 genes. Anything within the gene bounds prints.
+- **B62 Copy.** Labels say "make 6" rather than "cut 6", since sticks need not be cut short.
+- **B63 Print route.** The pages go into a print-only container and the print stylesheet shows only
+  that, one SVG per A4 sheet at 210 × 297 mm, unscaled, under
+  `@page { size: A4 portrait; margin: 0 }`. The container is cleared after printing and whenever a
+  print starts that no button asked for, so Ctrl+P prints the page itself (with 12 mm padding on
+  every sheet).
+- **B64 Download SVG** saves one standalone A4 SVG per page in one click
+  (`strandbeest-leg-template.svg`, or `…-page-1-of-3.svg` for longer templates). Jansen's beest and
+  each of 500 random beests fit on one page.
+- **B65 Evolve's template** is the best beest on show, with its number of pairs; its buttons stay
+  disabled until a run has a best. A beest that jams or does not fit can still be printed, since
+  the winner checks already say so. The four-bar's "Print the sticks" and "Download SVG" sit below
+  its playback controls.
+- **B66 Template fonts** list Arimo and Liberation Sans (Arial's widths) before `sans-serif`, since
+  text is placed by estimated Arial widths.
+
 ## Questions for Al
 
 Append questions here as they arise, most important first, each with what it blocks and the
@@ -334,6 +368,13 @@ provisional answer the build went ahead with.
   nothing. Built on the latest generation's.
 - **Runs on one graph.** The graph keeps the last 8 runs (B47), a ninth taking the oldest's place.
   Is that enough for a lesson's comparisons? Blocks nothing. Built on 8.
+- **Template download.** Download SVG saves one file per A4 page (B64). Would one multi-page PDF
+  suit the venue better? Blocks nothing. Built on one SVG per page (Q19).
+- **Crank sticks.** The template asks for one crank stick m per pair, shared by both legs (B56).
+  Does each throw use two, one each side of the legs? Blocks nothing. Built on one per pair
+  (`STICKS_PER_PAIR["m"]`).
+- **Chassis.** What is the chassis made of, and from how many pieces? The diagram gives only the
+  three holes (B60). Blocks nothing. Built on the holes alone.
 
 ## Slide edits for Al
 

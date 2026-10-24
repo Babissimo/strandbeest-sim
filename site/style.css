@@ -331,6 +331,75 @@ legend {
   font-weight: 600;
 }
 
+/* Templates: the print and download buttons, and the pages they print. */
+.template {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.template .hint,
+.template .warning {
+  margin: 0;
+}
+
+/* Evolve's best beest: its numbers, then its template's buttons. */
+.best-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.template-sheets {
+  display: none;
+}
+
+@media print {
+  /* No printer margins, so a 210 × 297 mm template page fills an A4 sheet unscaled. */
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  /* The page printed as itself keeps clear of the paper's edge, which printers cannot reach,
+     on every sheet. */
+  body:not([data-print="template"]) {
+    padding: 12mm;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  :root {
+    background: #fff;
+  }
+
+  /* While a template prints, its pages alone fill the sheets at actual size, one to each. */
+  body[data-print="template"] {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  body[data-print="template"] > :not(.template-sheets) {
+    display: none !important;
+  }
+
+  body[data-print="template"] > .template-sheets {
+    display: block;
+  }
+
+  .template-sheets > svg {
+    display: block;
+    width: 210mm;
+    height: 297mm;
+    break-after: page;
+  }
+
+  .template-sheets > svg:last-child {
+    break-after: auto;
+  }
+}
+
 @media (max-width: 800px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);

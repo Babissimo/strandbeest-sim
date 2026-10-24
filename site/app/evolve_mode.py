@@ -26,11 +26,13 @@ from app.controls import listen
 from app.editor import CodePanel
 from app.graph import MAX_SERIES, Graph, label, reading, short, title
 from app.leg_mode import TOLERANCE_BOUNDS
+from app.printing import TemplateButtons
 from app.storage import keep, recall
 from beest import ga
 from beest.fitness import INGREDIENTS, NORMALISATIONS, fixed_limits
 from beest.geometry import JAM_MARGIN_MM, LENGTH_NAMES
-from beest.leg import DOWN_TOLERANCE_MM, LENGTH_BOUNDS, STICKS
+from beest.leg import DOWN_TOLERANCE_MM, LENGTH_BOUNDS, STICKS, Layout
+from beest.template import leg_template_svg
 
 WORKER = "./app/ga_worker.py"
 WORKER_CONFIG = "./worker.toml"
@@ -412,6 +414,8 @@ class EvolveMode:
         self.runs = 0
         self.best: dict | None = None
         self.best_run: Run | None = None
+        # The report whose best beest is on show, which the template prints.
+        self.shown_best: dict | None = None
         self._shown: dict[str, str] = {}
         self._scheduled = False
         self._best_shown = False
@@ -441,6 +445,10 @@ class EvolveMode:
         # The view only sizes the graph's canvas, at the screen's pixel density.
         self.graph_canvas = draw.View(canvas, self._graph_resized)
         self.picture = BeestPicture(root, root.querySelector(".ev-beest"))
+        # Disabled until a run has a best beest to print.
+        self.template = TemplateButtons(root, root.querySelector(".ev-template"),
+                                        "Print the leg template", "strandbeest-leg-template",
+                                        self._leg_template)
         self._proxies = [
             listen(self.run_button, "click", self._run_clicked),
             listen(self.stop_button, "click", self._stop_clicked),
@@ -718,6 +726,8 @@ class EvolveMode:
                                     'generation appears here.</p>')
             return
         run = self.best_run
+        self.shown_best = report
+        self.template.enable()
         self._mirror("best-score", repr(report["best_score"]))
         self._mirror("winner-turns", str(not report["best_jams"]).lower())
         self._mirror("winner-fits", str(report["best_fits"]).lower())
@@ -745,6 +755,13 @@ class EvolveMode:
 <p class="layout">{layout["pairs"]} pair{'' if layout["pairs"] == 1 else 's'} of legs, cranks at
   {phases}</p>
 """
+
+    def _leg_template(self) -> list[str]:
+        """The template of the best beest on show, for its number of leg pairs."""
+        report = self.shown_best
+        layout = report["best_layout"]
+        return leg_template_svg(report["best_genes"],
+                                Layout(layout["pairs"], tuple(layout["phases"])))
 
     def _mirror(self, name: str, value: str) -> None:
         if self._shown.get(name) != value:
@@ -841,7 +858,10 @@ STAGE_HTML = """
         <output class="speed-shown">15 turns a minute</output>
       </div>
     </div>
-    <div class="ev-facts"></div>
+    <div class="best-facts">
+      <div class="ev-facts"></div>
+      <div class="template ev-template"></div>
+    </div>
   </div>
 </div>
 """

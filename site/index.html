@@ -44,6 +44,7 @@
             </label>
             <output class="speed-shown">15 turns a minute</output>
           </div>
+          <div id="fourbar-template" class="template"></div>
         </div>
         <div class="stage">
           <div class="readout">
@@ -122,6 +123,9 @@
       </div>
     </section>
   </main>
+
+  <!-- A template's pages, shown only when printing them (app/printing.py). -->
+  <div id="template-print" class="template-sheets"></div>
 
   <script type="py" id="main-py" src="./app/main.py" config="./pyscript.toml"></script>
   <script>
