@@ -28,10 +28,17 @@ pymunk 7.3.1 (WebAssembly wheel from PyPI, cffi from Pyodide). Arena only.
 Default 1 mm; a slider from 0.5 to 4 mm in the playground and a GA setting; drawn as a shaded band
 above the foot path's lowest point. Set in: `DOWN_TOLERANCE_MM`.
 
-### Q5 Fixed limits for normalisation 2: provisional
+### Q5 Fixed limits for normalisation 2: changed
 The 5th and 95th percentiles of each ingredient over 2,000 random working legs (each length uniform
 within ±25% of Jansen's, standard layout), computed by `scripts/survey_limits.py` with a fixed seed
-into `site/beest/limits.json`. Editable in the settings panel.
+into `site/beest/limits.json`, with two ends moved out past Jansen so that beating him still
+counts: distance runs from the survey's −358 mm to twice Jansen's distance per turn (default layout
+and down tolerance), 340 mm, and flatness from 0 mm, which scores full marks, to the survey's
+12.4 mm. Under the default fitness (S3) Jansen scores 0.87. Flatness's end moves too because
+widening distance alone lets one default winner in five fall over in the arena. Stride and time
+down keep their survey limits, which Jansen is above (66 against 33 mm, 0.41 against 0.22 of a
+turn), so anything as good as him on those clips to 1; neither is in the default. Editable in the
+settings panel. Set in: `DISTANCE_TOP_JANSEN_TIMES`, `FLATNESS_BEST_MM`. Changed by Al.
 
 ### Q6 Default crossover: provisional
 Uniform: each length from one parent, as on the slides. A setting offers blend (a random point
@@ -49,13 +56,13 @@ unit, so its longest stick (h) is 78.8 mm, leaving 32% headroom under the 104 mm
 "scaling" in brackets where the slides' word helps) and "scale" means mm per Jansen unit.
 
 ### Q9 Code route: provisional
-One editor holding `fitness` and `mutate`, starting from the slide code, with Python highlighting
-and line numbers (PyScript's bundled CodeMirror if it can be driven directly, else CodeMirror from
-npm). The GA runs in a PyScript worker. Run sends the editor's text to the worker; Stop terminates the
-worker and starts a fresh one, so an endless loop is always recoverable. An exception halts the run
-and shows the traceback with line numbers that match the editor. The text is kept in browser storage,
-with "Reset to slide code". If the worker needs cross-origin isolation, the dev server and
-`site/_headers` send `Cross-Origin-Opener-Policy: same-origin` and
+One editor holding `fitness` and `mutate`, opening on the starting code (S5), with Python
+highlighting and line numbers (PyScript's bundled CodeMirror if it can be driven directly, else
+CodeMirror from npm). The GA runs in a PyScript worker. Run sends the editor's text to the worker;
+Stop terminates the worker and starts a fresh one, so an endless loop is always recoverable. An
+exception halts the run and shows the traceback with line numbers that match the editor. The text
+is kept in browser storage, with "Reset to starting code". If the worker needs cross-origin
+isolation, the dev server and `site/_headers` send `Cross-Origin-Opener-Policy: same-origin` and
 `Cross-Origin-Embedder-Policy: require-corp`.
 
 ### Q10 Self-hosted runtime: provisional
@@ -135,15 +142,19 @@ Python draws through the canvas 2D API; the graph is drawn the same way. No char
 - **S3 GA defaults.** `POP_SIZE = 30`, `GENERATIONS = 40`, `ELITE = 2`, `RATE = 0.2` per length,
   mutation size 3 mm, tournament of 3. Default fitness: jams score 0, otherwise distance (weight 1)
   and flatness (weight 1, flipped), every other ingredient at weight 0, under the fixed limits (Q5)
-  (`DEFAULT_WEIGHTS`, `FitnessSettings.normalisation`). On seeds 1 to 5 the default GA's winners
-  step 12–81 mm, bob 0.5–1.1 mm and travel 174–230 mm a turn in the model, and all five walk in the
-  arena without falling (136–230 mm a turn; Jansen 171), where every default that keeps step
-  height at 0.5 has winners that fall. Changed by Al (Claude's recommendation at his request,
-  checked in the arena).
+  (`DEFAULT_WEIGHTS`, `FitnessSettings.normalisation`). On seeds 1 to 5 the default GA's best score
+  climbs from 0.65–0.83 in generation 0 to 0.87–0.93 (Jansen 0.874; seeds 1 and 3 end just below
+  him, at 0.869 and 0.866, walking further but bobbing more). Its winners step 12–30 mm, bob
+  0.25–2.0 mm and travel 188–270 mm a turn in the model, and all five walk in the arena without
+  falling (181–284 mm a turn; Jansen 171), where every default that keeps step height at 0.5 has
+  winners that fall. Changed by Al (Claude's recommendation at his request, checked in the arena).
 - **S4 Four-bar layout.** Crank pivot at the origin, rocker pivot at (ground, 0). The coupler joint
   takes the max-y intersection at θ = 0, then continuity as in Q14.
-- **S5 Slide code.** The build has the slide names but not the slide code. The starting `fitness`
-  and `mutate` are written from the brief's §4; Al compares them with the slides on Friday.
+- **S5 Starting code.** The code route's starting `fitness` scores as the settings route's default
+  does (S3): 0 for a jammed beest, otherwise the mean of `leg.normalised["distance"]` and
+  `1 - leg.normalised["flatness"]`, under whichever normalisation the run uses. With the weights,
+  flips and mutation size left at their defaults, the two routes give the same run for the same
+  seed. The starting `mutate` is written from the brief's §4. Changed by Al.
 - **S6 Student-facing genes.** The functions students see (`random_genes`, `mutate`, `crossover`,
   `clamp`, `leg_from`) take and return a plain list of 13 lengths in the order a–m, as GA slides
   usually show. The layout genes (`pairs`, `phases`) travel beside the list inside the engine.
@@ -294,6 +305,7 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   dashed, x is "Evaluations (beests scored)". "Relative to this generation" labels the axis when
   every run on the graph uses it, otherwise the legend marks those runs. Hovering shows each run's
   numbers. The ingredients view has one small panel per ingredient, each on its own scale.
+  Confirmed (Al left the number to Claude).
 - **B48 Best beests panel** shows two beests side by side: the engine's best of the latest
   generation and the best of the whole run so far (B85), each labelled with the run and its
   generation, with its own numbers and winner checks. When they are the same beest the run's column
@@ -315,10 +327,10 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   view while the editor still holds the code that ran, and the traceback (quoting the editor's
   lines) in a closed section. Generations already scored stay on the graph, labelled "(ended by an
   error in your code)".
-- **B53 Storage.** The editor's text is saved in browser storage after each edit; the slide code
-  itself is never stored, so a changed `SOURCE` reaches students after a reload. If storage is
-  blocked or full, the editor starts from the slide code and says the browser is not keeping it.
-- **B54 Reset to slide code** asks first only when the text differs from the slide code.
+- **B53 Storage.** The editor's text is saved in browser storage after each edit; the starting
+  code itself is never stored, so a changed `SOURCE` reaches students after a reload. If storage is
+  blocked or full, the editor opens on the starting code and says the browser is not keeping it.
+- **B54 Reset to starting code** asks first only when the text differs from the starting code.
 - **B55 Help.** A closed "What your code can use" section lists `leg`'s attributes with units,
   `leg.normalised` (before flipping), `leg.genes` and `mutate`'s arguments.
 
@@ -507,13 +519,7 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 
 Most important first, each with what it blocks and the provisional answer the build went ahead with.
 
-- **Fixed limits below Jansen.** Jansen is above the 95th percentile on stride (66 against 33 mm)
-  and time down, and below the 5th on bob, so under the limits normalisation anything as good as
-  Jansen clips to 1. Distance spans −358 to 174 mm because 55% of random working legs walk the wrong
-  way. Under the default fitness (S3) distance saturates at the survey's 95th percentile, 174 mm a
-  turn, so a winner gains nothing from walking further. Blocks nothing. Built on Q5 as written.
-- **Runs on one graph.** The graph keeps the last 8 runs (B47), a ninth taking the oldest's place.
-  Is that enough for a lesson's comparisons? Blocks nothing. Built on 8.
+None open.
 
 ## Slide edits for Al
 
@@ -529,5 +535,5 @@ Append any place where the simulator and the slides now differ.
   does not apply.
 - Students can read `leg.tips` and `leg.upright`, and there is a sixth ingredient, `upright`
   (B67, B69).
-- The settings route's default fitness is distance and flatness under the fixed limits (S3); the
-  slides' example `fitness`, the code route's starting text, still scores stride and step height.
+- Both routes' default fitness scores distance and flatness (S3, S5); the slides' example
+  `fitness` rewards stride and step height.

@@ -1,5 +1,5 @@
 {
-  "about": "Limits for normalisation by fixed limits: each ingredient's 5th and 95th percentiles over random working legs, or 0 and 1 for an ingredient that is only ever 0 or 1. Written by scripts/survey_limits.py.",
+  "about": "Limits for normalisation by fixed limits: each ingredient's 5th and 95th percentiles over random working legs, or 0 and 1 for an ingredient that is only ever 0 or 1, except that distance's highest limit is 2 times Jansen's distance per turn and flatness's lowest is 0 mm, so that beating Jansen still scores more. Written by scripts/survey_limits.py.",
   "legs": 2000,
   "spread": 0.25,
   "seed": 1,
@@ -8,10 +8,12 @@
     95
   ],
   "down_tolerance_mm": 1.0,
+  "distance_top_jansen_times": 2,
+  "flatness_best_mm": 0.0,
   "limits": {
     "distance": [
       -357.7042,
-      173.784
+      340.3547
     ],
     "stride": [
       4.1849,
@@ -26,7 +28,7 @@
       0.2222
     ],
     "flatness": [
-      1.0519,
+      0.0,
       12.403
     ],
     "upright": [

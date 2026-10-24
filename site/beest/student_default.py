@@ -1,7 +1,8 @@
 """The code route: the editor's starting text, and how the editor's text becomes functions.
 
-SOURCE follows the slides (brief §4, decisions S5). Student code runs as a module of its own, so
-it imports what it uses, as SOURCE does.
+SOURCE's fitness scores as the settings route's default does, and its mutate follows the brief's
+§4 (decisions S5). Student code runs as a module of its own, so it imports what it uses, as SOURCE
+does.
 """
 from __future__ import annotations
 
@@ -18,9 +19,14 @@ from beest.ga import clamp
 
 
 def fitness(leg):
+    # A beest that jams scores nothing.
     if leg.jams:
         return 0
-    return leg.stride + 0.5 * leg.step_height
+    # How far it walks and how much its body bobs, on the Normalisation setting's scale.
+    distance = leg.normalised["distance"]
+    bob = leg.normalised["flatness"]
+    # Further is better and less bob is better, so average distance with 1 - bob.
+    return (distance + (1 - bob)) / 2
 
 
 def mutate(genes, rate):

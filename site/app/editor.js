@@ -27,7 +27,7 @@ const [
   codemirror.commands,
 ]);
 
-// Python's usual indent, and the slide code's.
+// Python's usual indent, and the starting code's.
 const INDENT = "    ";
 
 const setMark = StateEffect.define();
