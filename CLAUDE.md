@@ -25,10 +25,12 @@ answer you built on. When he is present, ask him rather than choosing.
 ## Layout
 
 - `site/`: everything served, as plain static files with no build step.
-  - `site/beest/`: the model (geometry, measures, fitness, GA, templates). Standard library only, so
-    it runs the same under CPython and Pyodide; no `js`, `pyscript` or numpy imports.
+  - `site/beest/`: the model (geometry, measures, fitness, GA, templates). Standard library only
+    (except `arena.py`, which imports pymunk), so it runs the same under CPython and Pyodide; no
+    `js`, `pyscript` or numpy imports.
   - `site/app/`: browser glue (PyScript, canvas drawing, the GA worker).
-  - `site/vendor/`: PyScript and Pyodide, fetched by `scripts/vendor.py`; gitignored.
+  - `site/vendor/`: PyScript, Pyodide and the arena's wheels (pymunk, cffi), fetched by
+    `scripts/vendor.py`; gitignored.
 - `scripts/`: `vendor.py`, `serve.py`, `survey_limits.py`, `cloud_setup.sh`.
 - `tests/`: pytest under CPython; `tests/e2e/` drives the page in Chromium (marked `e2e`).
 
@@ -37,7 +39,7 @@ answer you built on. When he is present, ask him rather than choosing.
 ```bash
 uv sync                      # Python 3.14 and the dev dependencies
 uv run pytest -m "not e2e"   # model tests
-uv run scripts/vendor.py     # fetch the pinned runtime from the npm registry
+uv run scripts/vendor.py     # fetch the pinned runtime (npm) and the arena's wheels
 uv run scripts/serve.py      # serve site/ at http://127.0.0.1:8000 with the isolation headers
 uv run pytest -m e2e         # browser tests; need the runtime and a Chromium
 ```
@@ -49,7 +51,8 @@ uv run pytest -m e2e         # browser tests; need the runtime and a Chromium
   will not install or launch, the script tries the image's `/opt/pw-browsers/chromium` and, if that
   launches, exports `E2E_CHROMIUM` naming it, which `tests/e2e/conftest.py` launches instead.
   With neither, the e2e tests run only in CI.
-- jsDelivr is outside the allowlist too, which is one reason the runtime comes from npm.
+- jsDelivr is outside the allowlist too, which is one reason the runtime comes from npm and
+  Pyodide's own wheels (cffi) from its GitHub release.
 - `gh pr` and `gh issue` are blocked (the proxy refuses GraphQL); `gh api` works. With
   `R=repos/Babissimo/strandbeest-sim`:
   - open a PR: `gh api $R/pulls -f title="…" -f head=<branch> -f base=<base branch> -F body=@body.md`

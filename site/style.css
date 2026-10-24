@@ -322,6 +322,28 @@ legend {
   gap: 0.5rem;
 }
 
+/* A drop-down with its name beside it. */
+#arena-mode .choice {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#arena-mode .choice select {
+  width: 100%;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  font: inherit;
+}
+
+.notice {
+  color: var(--wait);
+  font-weight: 600;
+}
+
 .badge {
   align-self: flex-start;
   padding: 0.2rem 0.75rem;

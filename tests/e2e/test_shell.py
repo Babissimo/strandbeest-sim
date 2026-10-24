@@ -8,7 +8,7 @@ from playwright.sync_api import Page, Request, expect
 
 pytestmark = pytest.mark.e2e
 
-MODES = {"fourbar": "Four-bar", "leg": "Leg", "evolve": "Evolve"}
+MODES = {"fourbar": "Four-bar", "leg": "Leg", "evolve": "Evolve", "arena": "Arena"}
 START_TIMEOUT_MS = 60_000
 
 
@@ -75,7 +75,8 @@ def test_tabs_switch(page: Page) -> None:
     expect_only(page, "fourbar")
     page.goto("/#leg")
     expect_only(page, "leg")
-    for mode, label in [("evolve", "Evolve"), ("fourbar", "Four-bar"), ("leg", "Leg")]:
+    for mode, label in [("evolve", "Evolve"), ("arena", "Arena"), ("fourbar", "Four-bar"),
+                        ("leg", "Leg")]:
         page.get_by_role("link", name=label, exact=True).click()
         expect(page).to_have_url(re.compile(f"#{mode}$"))
         expect_only(page, mode)

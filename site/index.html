@@ -16,6 +16,7 @@
       <a href="#fourbar" aria-current="page">Four-bar</a>
       <a href="#leg">Leg</a>
       <a href="#evolve">Evolve</a>
+      <a href="#arena">Arena</a>
     </nav>
     <p id="status" class="status" data-status="loading" role="status">Starting Python (this takes a few seconds)…</p>
   </header>
@@ -122,6 +123,59 @@
         <div class="stage"></div>
       </div>
     </section>
+
+    <section id="arena-mode" class="mode" aria-labelledby="arena-heading" data-status="loading" hidden>
+      <div class="intro">
+        <h2 id="arena-heading">Arena</h2>
+        <p>A whole beest on the ground, with gravity, friction and the weight of every stick. Its feet
+          can slip and it can fall over, which the scores in Evolve leave out. The crank turns once a
+          second, as a motor would turn it.</p>
+      </div>
+      <div class="workspace">
+        <div class="controls">
+          <fieldset id="arena-choice">
+            <legend>The beest</legend>
+            <div class="choice">
+              <label for="arena-beest">Legs</label>
+              <select id="arena-beest" disabled>
+                <option value="jansen" selected>Jansen's leg</option>
+                <option value="leg">The leg from the Leg tab</option>
+                <option value="evolved" disabled>The best from Evolve</option>
+              </select>
+            </div>
+            <div class="choice">
+              <label for="arena-pairs">Pairs</label>
+              <select id="arena-pairs" disabled>
+                <option value="1">1 pair</option>
+                <option value="2">2 pairs</option>
+                <option value="3" selected>3 pairs</option>
+                <option value="4">4 pairs</option>
+              </select>
+            </div>
+            <p class="hint">Each pair is a leg and its mirror image on one throw of the crank. The
+              throws are spread evenly round the crank.</p>
+          </fieldset>
+          <div class="buttons">
+            <button type="button" id="arena-start" disabled>Start</button>
+            <button type="button" id="arena-reset" disabled>Reset</button>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="readout">
+            <p id="arena-message" class="warning" role="status"></p>
+            <table class="measures">
+              <tbody>
+                <tr><th scope="row">Crank turns</th><td id="arena-turns"></td></tr>
+                <tr><th scope="row">Distance walked</th><td id="arena-travel"></td></tr>
+                <tr><th scope="row">Distance per turn</th><td id="arena-distance"></td></tr>
+                <tr><th scope="row">Still upright</th><td id="arena-upright"></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <canvas role="img" aria-label="The whole beest walking along the ground"></canvas>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- A template's pages, shown only when printing them (app/printing.py). -->
@@ -130,7 +184,7 @@
   <script type="py" id="main-py" src="./app/main.py" config="./pyscript.toml"></script>
   <script>
     // Shows the mode the address's #hash names, or the four-bar when it names none.
-    const MODES = ["fourbar", "leg", "evolve"];
+    const MODES = ["fourbar", "leg", "evolve", "arena"];
 
     function showMode() {
       const asked = location.hash.slice(1);
