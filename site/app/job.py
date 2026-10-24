@@ -60,14 +60,15 @@ def failure(exc: BaseException) -> dict:
     """What went wrong during a run, for the page: `kind`, a plain `message`, the editor `line`
     and a `traceback` (both None when they do not apply).
 
-    kind is "student" for the editor's code (its traceback keeps only the editor's lines) and
-    "crash" for anything else.
+    kind is "student" for the editor's code (its message names the line, and its traceback
+    keeps only the editor's lines) and "crash" for anything else.
     """
     if isinstance(exc, SyntaxError) and exc.filename == ga.EDITOR:
         return _told("student", f"{type(exc).__name__} on line {exc.lineno}: {exc.msg}",
                      exc.lineno, "".join(traceback.format_exception_only(exc)))
     if isinstance(exc, ga.StudentCodeError):
-        return _told("student", exc.message, exc.line)
+        named = exc.message if exc.line is None else f"Line {exc.line}: {exc.message}"
+        return _told("student", named, exc.line)
     detail = f": {exc}" if str(exc) else ""
     frames = _editor_frames(exc)
     if frames:

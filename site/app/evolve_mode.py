@@ -6,7 +6,8 @@ also ends code that never returns; so does a run of the editor's code, or a work
 The root element mirrors the mode's state in `data-*` attributes: status (starting, ready,
 running or error), generation and evaluations (of the latest report in the run), best-score,
 series (runs on the graph), points (in the latest run), winner-turns, winner-fits, graph-view,
-axis (the score axis's title) and, when a run fails, error.
+axis (the score axis's title), route (settings or code) and, when a run fails, error and, for
+an error in the editor's code with a line, error-line.
 """
 from __future__ import annotations
 
@@ -22,8 +23,10 @@ from pyscript import PyWorker, document, window
 from app import draw, job
 from app.beest_picture import BeestPicture
 from app.controls import listen
+from app.editor import CodePanel
 from app.graph import MAX_SERIES, Graph, label, reading, short, title
 from app.leg_mode import TOLERANCE_BOUNDS
+from app.storage import keep, recall
 from beest import ga
 from beest.fitness import INGREDIENTS, NORMALISATIONS, fixed_limits
 from beest.geometry import JAM_MARGIN_MM, LENGTH_NAMES
@@ -42,8 +45,13 @@ PRESET_NAMES = {"ga": "GA", "hill": "Hill climbing", "random": "Random search"}
 # The settings each preset ignores; their boxes are greyed out.
 UNUSED = {"ga": set(), "hill": {"pop", "elite", "crossover"},
           "random": {"elite", "rate", "size", "crossover", "layout"}}
+# The settings the editor's fitness and mutate take over from on the code route; normalisation
+# still fills in leg.normalised.
+CODE_UNUSED = {"size", "weights"}
 # Hill climbing breeds one beest at a time by mutation only, and the panel shows that.
 HILL_SETTINGS = {"pop": 1, "elite": 0, "crossover": "none"}
+# Where the browser keeps the chosen route.
+ROUTE_KEY = "strandbeest-sim.route"
 # Choosing these presets sets "Stop after" to a number of evaluations.
 COMPARED_BY_BUDGET = {"hill", "random"}
 # Each choice in a drop-down: its words, and a line saying what it does. A choice missing here
@@ -143,6 +151,14 @@ def panel_html() -> str:
 </div>
 <p class="warning ev-error" role="alert" hidden></p>
 <p class="ev-progress" role="status">Starting the evolution engine…</p>
+<fieldset class="field" data-setting="route">
+  <legend>Score and mutate with</legend>
+  <label class="choice"><input type="radio" name="ev-route" value="settings" checked>
+    the settings</label>
+  <label class="choice"><input type="radio" name="ev-route" value="code"> my code</label>
+  <small class="hint">With my code, the fitness and mutate you write in the editor take over from
+    the fitness weights and the mutation size.</small>
+</fieldset>
 {_select("preset", "Search", default.preset)}
 <fieldset class="field" data-setting="limit">
   <legend>Stop after</legend>
@@ -161,13 +177,17 @@ def panel_html() -> str:
         "the same seed and settings give the same run again")}
 <details class="group">
   <summary>Fitness: what makes a good beest</summary>
+  <p class="hint ev-code-note" hidden>Your fitness gives the score, so the weights and flips are
+    not used. Normalisation still fills in <code>leg.normalised</code>.</p>
   {_select("normalisation", "Normalisation (scaling)", fitness.normalisation)}
-  <table class="ingredients">
-    <thead><tr><th>Ingredient</th><th>Weight</th><th>Flip</th></tr></thead>
-    <tbody>{"".join(rows)}</tbody>
-  </table>
-  <p class="hint">A beest that jams scores 0. Flip an ingredient when lower is better: it then
-    counts 1 − its normalised value.</p>
+  <div class="field" data-setting="weights">
+    <table class="ingredients">
+      <thead><tr><th>Ingredient</th><th>Weight</th><th>Flip</th></tr></thead>
+      <tbody>{"".join(rows)}</tbody>
+    </table>
+    <p class="hint">A beest that jams scores 0. Flip an ingredient when lower is better: it then
+      counts 1 − its normalised value.</p>
+  </div>
   <div class="limits" hidden>
     <table class="ingredients">
       <thead><tr><th>Fixed limits</th><th>Lowest</th><th>Highest</th></tr></thead>
@@ -204,6 +224,8 @@ class SettingsForm:
         self.panel = panel
         panel.innerHTML = panel_html()
         self.preset = self._get("preset").value
+        # "settings" or "code": what scores and mutates the beests.
+        self.route = "settings"
         # The boxes hill climbing fills in, as they were before it did.
         self._saved: dict[str, str] = {}
         # The surveyed limits as their boxes first showed them.
@@ -241,11 +263,28 @@ class SettingsForm:
             # hill climbing's 40 generations would be only 40 beests.
             self._choose_limit("budget")
         self.preset = chosen
+        self._grey_out()
+
+    def set_route(self, route: str) -> None:
+        """Choose what scores and mutates the beests, "settings" or "code"."""
+        self.route = route
+        for radio in self.panel.querySelectorAll('input[name="ev-route"]'):
+            radio.checked = radio.value == route
+        self.panel.querySelector(".ev-code-note").hidden = route != "code"
+        self._grey_out()
+
+    def unused(self) -> set[str]:
+        """The settings the chosen preset, on the chosen route, does not use."""
+        preset = self._get("preset").value
+        return UNUSED.get(preset, set()) | (CODE_UNUSED if self.route == "code" else set())
+
+    def _grey_out(self) -> None:
+        unused = self.unused()
         for row in self.panel.querySelectorAll("[data-setting]"):
-            unused = row.dataset.setting in UNUSED.get(chosen, ())
-            row.classList.toggle("unused", unused)
+            greyed = row.dataset.setting in unused
+            row.classList.toggle("unused", greyed)
             for control in row.querySelectorAll("input, select"):
-                control.disabled = unused
+                control.disabled = greyed
 
     def _limit(self) -> str:
         """Which "Stop after" is chosen: "generations" or "budget"."""
@@ -282,7 +321,7 @@ class SettingsForm:
         Raises ValueError naming the box to fix when one does not hold a usable number.
         """
         preset = self._get("preset").value
-        unused = UNUSED.get(preset, set())
+        unused = self.unused()
         budget = self._limit() == "budget"
         settings = {
             "preset": preset,
@@ -306,18 +345,19 @@ class SettingsForm:
                 settings[key] = self._read(key, what, whole, low, high)
         if "crossover" not in unused:
             settings["crossover"] = self._get("crossover").value
-        settings["fitness"] = self._fitness()
+        settings["fitness"] = self._fitness("weights" not in unused)
         return settings
 
-    def _fitness(self) -> dict:
+    def _fitness(self, weighted: bool) -> dict:
+        """The Fitness settings; without the weights and flips unless `weighted`."""
         normalisation = self._get("normalisation").value
-        fitness = {
-            "weights": {name: self._read(f"w-{name}", f"The weight of {title(name).lower()}",
-                                         low=0)
-                        for name in INGREDIENTS},
-            "flip": {name: bool(self._get(f"flip-{name}").checked) for name in INGREDIENTS},
-            "normalisation": normalisation,
-        }
+        fitness: dict = {"normalisation": normalisation}
+        if weighted:
+            fitness["weights"] = {
+                name: self._read(f"w-{name}", f"The weight of {title(name).lower()}", low=0)
+                for name in INGREDIENTS}
+            fitness["flip"] = {name: bool(self._get(f"flip-{name}").checked)
+                               for name in INGREDIENTS}
         if normalisation == "limits":
             fitness["limits"] = {}
             surveyed = fixed_limits()
@@ -379,12 +419,16 @@ class EvolveMode:
         self._best_drawn = -math.inf
         # What the status line last said about a run.
         self._said = ""
+        # The error on show, and whether it is in the editor's code.
+        self._error: str | None = None
+        self._error_in_code = False
         # Tasks still running; asyncio itself keeps only weak references to them.
         self._tasks: set[asyncio.Future] = set()
         self._pyodide = window.URL.new(PYODIDE, document.baseURI).href
         self.form = SettingsForm(root.querySelector(".controls"))
         stage = root.querySelector(".stage")
         stage.innerHTML = STAGE_HTML
+        self.code = CodePanel(stage, on_reset=self._code_reset)
         self.run_button = root.querySelector(".ev-run")
         self.stop_button = root.querySelector(".ev-stop")
         self.error = root.querySelector(".ev-error")
@@ -406,6 +450,9 @@ class EvolveMode:
         ]
         for radio in root.querySelectorAll('input[name="ev-view"]'):
             self._proxies.append(listen(radio, "change", self._view_changed))
+        for radio in root.querySelectorAll('input[name="ev-route"]'):
+            self._proxies.append(listen(radio, "change", self._route_changed))
+        self._set_route("code" if recall(ROUTE_KEY) == "code" else "settings")
         self._frame_proxy = create_proxy(self._frame)
         self._mirror("graph-view", self.graph.view)
         self._show_runs()
@@ -463,7 +510,7 @@ class EvolveMode:
     # Run, Stop and Clear graph
 
     def _run_clicked(self, event=None) -> None:
-        self.start_run()
+        self.start_run(self.code.text if self.form.route == "code" else None)
 
     def start_run(self, source: str | None = None) -> bool:
         """Start a run with the panel's settings; with `source`, the editor's fitness and
@@ -478,7 +525,8 @@ class EvolveMode:
         self._show_error(None)
         self.runs += 1
         name = PRESET_NAMES.get(settings.preset, settings.preset)
-        series = self.graph.add(f"Run {self.runs}: {name}, seed {settings.seed}",
+        coded = "" if source is None else ", your code"
+        series = self.graph.add(f"Run {self.runs}: {name}{coded}, seed {settings.seed}",
                                 relative=settings.fitness.normalisation == "generation")
         run = Run(settings, source, series)
         self.current = run
@@ -506,9 +554,10 @@ class EvolveMode:
             # Stopped meanwhile; a fresh worker has taken over.
             return
         self.current = None
-        if answer["status"] == "error":
-            self._failed(run, answer["error"])
-        self._show_ended(run, answer["status"])
+        ended = answer["status"]
+        if ended == "error" and self._failed(run, answer["error"]):
+            ended = "code"
+        self._show_ended(run, ended)
         if alive and run.source is None:
             self._set_status("ready")
         else:
@@ -530,15 +579,17 @@ class EvolveMode:
             self.graph.discard(run.series)
             self.runs -= 1
 
-    def _failed(self, run: Run, error: dict) -> None:
-        self._give_back(run, "ended by an error")
+    def _failed(self, run: Run, error: dict) -> bool:
+        """Show why the run failed; True when the editor's code was at fault."""
+        in_code = error["kind"] == "student"
+        self._give_back(run, "ended by an error in your code" if in_code else "ended by an error")
         message = error["message"]
-        if error.get("line") is not None and f"line {error['line']}" not in message:
-            message = f"Line {error['line']}: {message}"
-        self._show_error(message)
+        self._show_error(message, error.get("line"), error.get("traceback"),
+                         run.source if in_code else None)
         if error["kind"] == "crash":
             # A crash is a fault in the simulator rather than in the settings or the editor.
             window.console.error(error.get("traceback") or message)
+        return in_code
 
     def _stop_clicked(self, event=None) -> None:
         run = self.current
@@ -572,14 +623,35 @@ class EvolveMode:
         self.stop_button.disabled = status != "running"
         self._show_status_line()
 
-    def _show_error(self, message: str | None) -> None:
-        self.error.hidden = message is None
-        self.error.textContent = message or ""
+    def _show_error(self, message: str | None, line: int | None = None,
+                    trace: str | None = None, source: str | None = None) -> None:
+        """Say why a run could not go on; None clears it.
+
+        An error in the editor's code (`source`, the code that ran) shows beside the editor,
+        which marks `line` and offers `trace`. Any other error shows beside Run, as does one in
+        the code while the editor is hidden.
+        """
+        self._error = message
+        self._error_in_code = message is not None and source is not None
+        if self._error_in_code:
+            self.code.show_error(message, line, trace, source)
+        else:
+            self.code.show_error(None)
+        self._place_error()
         if message is None:
-            self.root.removeAttribute("data-error")
-            self._shown.pop("error", None)
+            self._forget("error")
         else:
             self._mirror("error", message)
+        if self._error_in_code and line is not None:
+            self._mirror("error-line", str(line))
+        else:
+            self._forget("error-line")
+
+    def _place_error(self) -> None:
+        """Show the error beside Run, unless the editor on show has it."""
+        beside_run = None if self._error_in_code and self.code.shown else self._error
+        self.error.hidden = beside_run is None
+        self.error.textContent = beside_run or ""
 
     def _show_progress(self, run: Run | None = None, ended: str | None = None) -> None:
         run = run or self.current
@@ -599,6 +671,8 @@ class EvolveMode:
             self._said = f"Finished: {counts} in {seconds:.1f} s."
         elif ended == "stopped":
             self._said = f"Stopped after {counts}."
+        elif ended == "code":
+            self._said = f"Your code stopped the run after {counts}."
         else:
             self._said = f"The run ended early after {counts}."
         self._show_status_line()
@@ -677,6 +751,10 @@ class EvolveMode:
             self._shown[name] = value
             self.root.setAttribute(f"data-{name}", value)
 
+    def _forget(self, name: str) -> None:
+        self.root.removeAttribute(f"data-{name}")
+        self._shown.pop(name, None)
+
     # Drawing
 
     def _schedule(self) -> None:
@@ -710,6 +788,21 @@ class EvolveMode:
         leaving = event.type == "pointerleave"
         self.graph.hover = None if leaving else (float(event.offsetX), float(event.offsetY))
         self._schedule()
+
+    def _code_reset(self) -> None:
+        # A message about the student's own code goes with it; one about the settings stays.
+        if self._error_in_code:
+            self._show_error(None)
+
+    def _route_changed(self, event) -> None:
+        self._set_route(event.target.value)
+        keep(ROUTE_KEY, self.form.route)
+
+    def _set_route(self, route: str) -> None:
+        self.form.set_route(route)
+        self.code.show(route == "code")
+        self._place_error()
+        self._mirror("route", route)
 
     def _view_changed(self, event) -> None:
         self.graph.view = event.target.value

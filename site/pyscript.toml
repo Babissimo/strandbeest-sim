@@ -17,6 +17,7 @@ interpreter = "./vendor/pyodide/pyodide.mjs"
 "./app/beest_picture.py" = "./app/beest_picture.py"
 "./app/controls.py" = "./app/controls.py"
 "./app/draw.py" = "./app/draw.py"
+"./app/editor.py" = "./app/editor.py"
 "./app/evolve_mode.py" = "./app/evolve_mode.py"
 "./app/fourbar_mode.py" = "./app/fourbar_mode.py"
 "./app/ga_worker.py" = "./app/ga_worker.py"
@@ -24,3 +25,8 @@ interpreter = "./vendor/pyodide/pyodide.mjs"
 "./app/job.py" = "./app/job.py"
 "./app/leg_mode.py" = "./app/leg_mode.py"
 "./app/main.py" = "./app/main.py"
+"./app/storage.py" = "./app/storage.py"
+
+# JavaScript modules imported before the page's Python runs, each as pyscript.js_modules.<name>.
+[js_modules.main]
+"./app/editor.js" = "editor"

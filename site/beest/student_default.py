@@ -5,6 +5,8 @@ it imports what it uses, as SOURCE does.
 """
 from __future__ import annotations
 
+import io
+import linecache
 from collections.abc import Callable
 
 from .ga import EDITOR, StudentCodeError
@@ -38,6 +40,10 @@ def student_functions(source: str) -> tuple[Callable, Callable]:
 
     A syntax error or an exception while it runs propagates unchanged.
     """
+    # Tracebacks then show each editor line beside its number, so the lines break only where
+    # Python's do (not at a form feed, as str.splitlines would).
+    lines = io.StringIO(source, newline=None).readlines()
+    linecache.cache[EDITOR] = (len(source), None, lines, EDITOR)
     namespace: dict[str, object] = {"__name__": "student"}
     exec(compile(source, EDITOR, "exec"), namespace)
     for name, signature in FUNCTIONS.items():

@@ -63,3 +63,11 @@ def test_worker_maps_what_it_imports() -> None:
     files = WORKER["files"]
     assert set(files) == expected
     assert all(source == target for source, target in files.items())
+
+
+def test_js_modules_map_every_script() -> None:
+    # Each .js in app/ loads before the page's Python, named after its file.
+    expected = {path: Path(path).stem for path in page_files("app", "*.js")}
+    assert "./app/editor.js" in expected
+    assert CONFIG["js_modules"]["main"] == expected
+    assert "js_modules" not in WORKER
