@@ -6,7 +6,8 @@ from urllib.parse import urlsplit
 import pytest
 from playwright.sync_api import Locator, Page, Request, expect
 
-from beest.leg import MM_PER_UNIT
+from beest.arena import race
+from beest.leg import MM_PER_UNIT, Layout, jansen_lengths
 
 pytestmark = pytest.mark.e2e
 
@@ -250,3 +251,25 @@ def test_new_best_from_evolve_waits_for_reset(page: Page) -> None:
     expect(mode).to_have_attribute("data-status", "running")
     expect(mode).to_have_attribute("data-pairs", "2")
     walks_on(page, turns(mode) + 0.1)
+    # Choosing a race takes up the new best on the pairs shown, as changing Pairs does.
+    page.locator("#arena-race").select_option("distance")
+    expect(mode).to_have_attribute("data-race", "distance")
+    expect(mode).to_have_attribute("data-pairs", "2")
+    expect(message).to_have_text("")
+
+
+def test_jansen_crosses_the_pencils(page: Page) -> None:
+    mode = open_arena(page)
+    page.locator("#arena-race").select_option("pencils")
+    expect(mode).to_have_attribute("data-race", "pencils")
+    expect(page.locator("#arena-race-result")).to_have_text("Press Start to begin")
+    page.locator("#arena-start").click()
+    expect(mode).to_have_attribute("data-outcome", "finished", timeout=30_000)
+    expect(mode).to_have_attribute("data-status", "ready")
+    expect(page.locator("#arena-start")).to_be_disabled()
+    crossed_in = float(mode.get_attribute("data-race-turns"))
+    expected = race(jansen_lengths(), Layout(3), "pencils").turns
+    assert crossed_in == pytest.approx(expected, abs=0.5)
+    expect(page.locator("#arena-race-result")).to_have_text(
+        f"It crossed the pencils in {crossed_in:.1f} turns."
+    )
