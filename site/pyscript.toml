@@ -1,0 +1,11 @@
+# PyScript settings for index.html. The runtime comes from site/vendor/ (scripts/vendor.py);
+# Pyodide finds its other files beside pyodide.mjs.
+interpreter = "./vendor/pyodide/pyodide.mjs"
+
+# Every module the page imports, copied into Python's working folder, which is on sys.path.
+[files]
+"./beest/__init__.py" = "./beest/__init__.py"
+"./beest/geometry.py" = "./beest/geometry.py"
+"./beest/measures.py" = "./beest/measures.py"
+"./app/__init__.py" = "./app/__init__.py"
+"./app/main.py" = "./app/main.py"

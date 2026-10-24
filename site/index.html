@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Strandbeest simulator</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./vendor/pyscript/core.css">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./vendor/pyscript/core.js" onerror="startFailed()"></script>
+</head>
+<body>
+  <header class="masthead">
+    <h1>Strandbeest simulator</h1>
+    <nav class="tabs" aria-label="Modes">
+      <a href="#fourbar" aria-current="page">Four-bar</a>
+      <a href="#leg">Leg</a>
+      <a href="#evolve">Evolve</a>
+    </nav>
+    <p id="status" class="status" data-status="loading" role="status">Starting Python (this takes a few seconds)…</p>
+  </header>
+
+  <main>
+    <section id="fourbar-mode" class="mode" aria-labelledby="fourbar-heading">
+      <div class="intro">
+        <h2 id="fourbar-heading">Four-bar linkage</h2>
+        <p>Four sticks joined in a loop: a fixed ground, a crank that turns, a coupler and a rocker.
+          Change their lengths and watch the path drawn by a point on the coupler.</p>
+      </div>
+      <div class="workspace">
+        <div class="controls"></div>
+        <div class="stage"></div>
+      </div>
+    </section>
+
+    <section id="leg-mode" class="mode" aria-labelledby="leg-heading" hidden>
+      <div class="intro">
+        <h2 id="leg-heading">Jansen leg</h2>
+        <p>Theo Jansen's leg, with every length in mm. Change any of them and see how the foot moves:
+          how long its stride is, how high it lifts, and whether the leg jams.</p>
+      </div>
+      <div class="workspace">
+        <div class="controls"></div>
+        <div class="stage"></div>
+      </div>
+    </section>
+
+    <section id="evolve-mode" class="mode" aria-labelledby="evolve-heading" hidden>
+      <div class="intro">
+        <h2 id="evolve-heading">Evolve a beest</h2>
+        <p>A genetic algorithm breeds whole beests. In each generation the beests that score best are
+          the most likely to pass their lengths on to the next.</p>
+      </div>
+      <div class="workspace">
+        <div class="controls"></div>
+        <div class="stage"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="py" id="main-py" src="./app/main.py" config="./pyscript.toml"></script>
+  <script>
+    // Shows the mode the address's #hash names, or the four-bar when it names none.
+    const MODES = ["fourbar", "leg", "evolve"];
+
+    function showMode() {
+      const asked = location.hash.slice(1);
+      const mode = MODES.includes(asked) ? asked : "fourbar";
+      for (const name of MODES) {
+        document.getElementById(`${name}-mode`).hidden = name !== mode;
+        const tab = document.querySelector(`.tabs a[href="#${name}"]`);
+        if (name === mode) tab.setAttribute("aria-current", "page");
+        else tab.removeAttribute("aria-current");
+      }
+      document.body.dataset.mode = mode;
+    }
+
+    // app/main.py marks the status ready. Python did not start if PyScript finishes that script
+    // (py:done fires even when it raised) or anything throws before then.
+    function startFailed() {
+      const status = document.getElementById("status");
+      if (status.dataset.status !== "loading") return;
+      status.dataset.status = "error";
+      status.textContent = "Python could not start. Try reloading the page.";
+    }
+
+    addEventListener("hashchange", showMode);
+    document.getElementById("main-py").addEventListener("py:done", startFailed);
+    addEventListener("error", startFailed);
+    addEventListener("unhandledrejection", startFailed);
+    showMode();
+  </script>
+</body>
+</html>

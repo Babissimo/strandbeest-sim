@@ -27,3 +27,34 @@ jobs:
 
       - name: Unit tests
         run: uv run pytest -m "not e2e"
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Fetch the runtime
+        run: uv run scripts/vendor.py
+
+      - name: Install Chromium
+        run: uv run playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: uv run pytest -m e2e --tracing retain-on-failure
+
+      - name: Keep traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-traces
+          path: test-results/
+          if-no-files-found: ignore

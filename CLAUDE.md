@@ -44,9 +44,11 @@ uv run pytest -m e2e         # browser tests; need the runtime and a Chromium
 
 ## Cloud sessions
 
-- `scripts/cloud_setup.sh` runs at session start and says whether Chromium could be installed.
-  Playwright's download hosts are outside the default network allowlist; when it fails, the e2e
-  tests still run in CI.
+- `scripts/cloud_setup.sh` runs at session start and says which Chromium the e2e tests can use.
+  Playwright's download hosts are outside the default network allowlist, so when its own Chromium
+  will not install or launch, the script tries the image's `/opt/pw-browsers/chromium` and, if that
+  launches, exports `E2E_CHROMIUM` naming it, which `tests/e2e/conftest.py` launches instead.
+  With neither, the e2e tests run only in CI.
 - jsDelivr is outside the allowlist too, which is one reason the runtime comes from npm.
 - `gh pr` and `gh issue` are blocked (the proxy refuses GraphQL); `gh api` works. With
   `R=repos/Babissimo/strandbeest-sim`:
