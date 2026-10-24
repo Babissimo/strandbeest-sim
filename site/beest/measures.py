@@ -34,6 +34,11 @@ def mirrored(foot: list[Point]) -> list[Point]:
     return [(-foot[(n // 2 - t) % n][0], foot[(n // 2 - t) % n][1]) for t in range(n)]
 
 
+def throw_steps(phases_deg: list[float], n: int) -> list[int]:
+    """Each throw's angle as the nearest of n sampled steps round the turn."""
+    return [math.floor(phase * n / 360 + 0.5) % n for phase in phases_deg]
+
+
 def beest_feet(foot: list[Point], phases_deg: list[float]) -> list[list[Point]]:
     """Every foot at each crank angle: the original then the mirror, for each throw in turn.
 
@@ -41,7 +46,7 @@ def beest_feet(foot: list[Point], phases_deg: list[float]) -> list[list[Point]]:
     """
     n = len(foot)
     mirror = mirrored(foot)
-    shifts = [math.floor(phase * n / 360 + 0.5) % n for phase in phases_deg]
+    shifts = throw_steps(phases_deg, n)
     return [[f for s in shifts for f in (foot[(t + s) % n], mirror[(t + s) % n])] for t in range(n)]
 
 

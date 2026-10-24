@@ -344,3 +344,348 @@ legend {
     margin-left: 0;
   }
 }
+
+/* Evolve mode */
+
+#evolve-mode .controls .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+#evolve-mode .field > label,
+#evolve-mode .field > legend {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+#evolve-mode .controls input[type="number"],
+#evolve-mode .controls select {
+  max-width: 100%;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+#evolve-mode .field > input[type="number"] {
+  width: 7rem;
+}
+
+#evolve-mode .field .hint {
+  margin: 0;
+}
+
+/* A radio button or checkbox with its words, and sometimes a box, on one line. */
+#evolve-mode .choice {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+}
+
+#evolve-mode .field > label.choice {
+  font-weight: 400;
+}
+
+#evolve-mode .choice input[type="number"] {
+  width: 6rem;
+}
+
+#evolve-mode .field.unused {
+  opacity: 0.55;
+}
+
+#evolve-mode .buttons button {
+  padding: 0.45rem 1.4rem;
+  font-size: 1rem;
+}
+
+#evolve-mode .controls button.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+#evolve-mode .controls button.primary:hover:not(:disabled) {
+  background: #194f9f;
+}
+
+.ev-error {
+  margin: 0;
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+}
+
+.ev-progress {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+#evolve-mode[data-status="error"] .ev-progress {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+details.group {
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+
+details.group > summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+details.group > * + * {
+  margin-top: 0.9rem;
+}
+
+table.ingredients {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+table.ingredients th,
+table.ingredients td {
+  padding: 0.2rem 0.25rem 0.2rem 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+table.ingredients thead th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+table.ingredients tbody th {
+  font-weight: 400;
+}
+
+#evolve-mode table.ingredients input[type="number"] {
+  width: 5.2rem;
+}
+
+.genes {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.2rem 0.4rem;
+}
+
+.gene {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+#evolve-mode .stage {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem;
+}
+
+#evolve-mode .panel h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.panel-head .ev-clear {
+  margin-left: auto;
+}
+
+#evolve-mode .stage button {
+  padding: 0.3rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#evolve-mode .stage button:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+#evolve-mode .stage button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.segmented {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.9rem;
+}
+
+.segmented label {
+  padding: 0.25rem 0.8rem;
+  cursor: pointer;
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented label:has(input:checked) {
+  background: var(--accent);
+  color: #fff;
+}
+
+.segmented label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* These sizes win over the shared canvas sizes, on narrow screens too. */
+#evolve-mode .stage canvas.ev-graph {
+  height: 19rem;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+
+#evolve-mode .stage canvas.ev-beest {
+  height: 17rem;
+  min-height: 0;
+  aspect-ratio: auto;
+  border-radius: 6px;
+  background: var(--wash);
+}
+
+.ev-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  font-size: 0.88rem;
+  list-style: none;
+}
+
+.ev-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ev-legend .key {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 3px;
+}
+
+.ev-styles {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.ev-styles .line {
+  display: inline-block;
+  width: 1.6rem;
+  border-top: 2px solid var(--muted);
+  vertical-align: middle;
+}
+
+.ev-styles .line.dashed {
+  margin-left: 0.8rem;
+  border-top-style: dashed;
+}
+
+.ev-readout {
+  min-height: 1.3em;
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: pre-line;
+}
+
+.best-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(14rem, 1fr);
+  gap: 1rem;
+  align-items: start;
+  margin-top: 0.5rem;
+}
+
+.best-picture {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ev-facts p {
+  margin: 0 0 0.5rem;
+  font-size: 0.92rem;
+}
+
+.ev-facts .checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  font-weight: 600;
+  list-style: none;
+}
+
+.ev-facts .ok {
+  color: var(--ok);
+}
+
+.ev-facts .bad {
+  color: var(--bad);
+}
+
+.ev-facts .numbers {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.1rem 0.75rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.ev-facts dt {
+  color: var(--muted);
+}
+
+.ev-facts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.ev-facts .lengths span {
+  display: inline-block;
+  margin-right: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 800px) {
+  .best-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
