@@ -13,6 +13,7 @@ TYPES = {
     "main.py": "text/plain",
     "pyodide-lock.json": "application/json",
     "python_stdlib.zip": "application/zip",
+    "pymunk.whl": "application/octet-stream",
 }
 
 

@@ -1,0 +1,78 @@
+# Deploys site/ to strandbeests.babissimo.net whenever main changes what is served, and dry-runs
+# the deploy (which checks Cloudflare's file limits) on pull requests that could change it.
+#
+# The deploy needs a CLOUDFLARE_API_TOKEN repository secret; README.md says how to make one.
+# Only the Deploy step, on main, is given it, though a branch that edits this file could reach it.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - deploy/**
+      - scripts/vendor.py
+      - .github/workflows/deploy.yml
+  pull_request:
+    paths:
+      - site/**
+      - deploy/**
+      - scripts/vendor.py
+      - .github/workflows/deploy.yml
+  # Redeploys main without a change, e.g. once the secret is first added. From any other branch
+  # it only dry-runs.
+  workflow_dispatch:
+
+# Deploys never overlap, and a newer push to main replaces one still waiting; a pull request's
+# newer push replaces its running dry run.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Actions are pinned to commits, since this job holds the Cloudflare token.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # No dependency caches, for the same reason: a poisoned cache could reach the token.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # site/vendor/ is gitignored, so the runtime is fetched for every deploy.
+      - name: Fetch the runtime
+        run: uv run scripts/vendor.py
+
+      - name: Install wrangler
+        working-directory: deploy
+        run: npm ci
+
+      - name: Dry run
+        if: github.ref != 'refs/heads/main'
+        working-directory: deploy
+        run: npx wrangler deploy --dry-run
+
+      - name: Deploy
+        if: github.ref == 'refs/heads/main'
+        working-directory: deploy
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # An identifier, not a credential; the token alone grants access.
+          CLOUDFLARE_ACCOUNT_ID: b8c54ac7f6fcc51428ff55dc618c2f5c

@@ -1,0 +1,3 @@
+# Files wrangler leaves out when it uploads site/ (gitignore syntax). Running the tests writes
+# bytecode beside beest/ and app/.
+__pycache__/

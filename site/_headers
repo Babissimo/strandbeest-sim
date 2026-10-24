@@ -1,3 +1,10 @@
 /*
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: require-corp
+
+# Cloudflare's own table has no type for these; scripts/serve.py sends the same.
+/*.py
+  Content-Type: text/plain; charset=utf-8
+
+/*.whl
+  Content-Type: application/octet-stream
