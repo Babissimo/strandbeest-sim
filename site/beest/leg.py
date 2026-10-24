@@ -10,10 +10,13 @@ import math
 from dataclasses import dataclass, field
 
 from .geometry import ANGLES, HOLY, JAM_MARGIN_MM, LENGTH_NAMES, LegTrace, trace_leg
-from .measures import beest_measures, foot_measures
+from .measures import beest_feet, beest_measures, foot_measures, tips
 
 MM_PER_UNIT = 1.2
 DOWN_TOLERANCE_MM = 1.0
+# Where the body's centre of mass lies along x from the crank axle, which the chassis is
+# symmetric about.
+CENTRE_OF_MASS_X_MM = 0.0
 # a and l place the fixed pivot G from the crank axle; every other length is a stick.
 LENGTH_BOUNDS: dict[str, tuple[float, float]] = {
     name: (-30.0, 30.0) if name == "l" else (10.0, 104.0) for name in LENGTH_NAMES}
@@ -77,6 +80,8 @@ class Leg:
     # Every stick lies within LENGTH_BOUNDS.
     fits: bool
     trace: LegTrace = field(repr=False)
+    # Whether the beest tips over at some crank angle: its centre of mass lies beyond the feet on
+    # the ground (those within the down tolerance of the lowest). None for a jammed leg.
     tips: bool | None = None
     # Each ingredient on a common scale, filled in by fitness.normalise.
     normalised: dict[str, float] = field(default_factory=dict, repr=False, compare=False)
@@ -86,13 +91,19 @@ class Leg:
         """The body bob under the slides' name; lower is better."""
         return self.bob
 
+    @property
+    def upright(self) -> float:
+        """1.0 when the beest stays up all the way round, 0.0 when it tips or jams."""
+        return 1.0 if self.tips is False else 0.0
+
 
 def leg_from(genes: list[float], layout: Layout = Layout(), tol: float = DOWN_TOLERANCE_MM,
              n: int = ANGLES, margin: float = JAM_MARGIN_MM) -> Leg:
     """Build the beest these 13 lengths (a to m) describe, on this layout, and measure it.
 
-    A foot counts as down within `tol` mm of its lowest point. A pair of links closer than
-    `margin` mm to failing to meet counts as jammed.
+    A foot counts as down within `tol` mm of its lowest point, and holds the body up within `tol`
+    mm of the lowest foot at that angle. A pair of links closer than `margin` mm to failing to
+    meet counts as jammed.
     """
     if len(genes) != len(LENGTH_NAMES):
         raise ValueError(f"a leg needs {len(LENGTH_NAMES)} lengths (a to m), not {len(genes)}")
@@ -115,4 +126,5 @@ def leg_from(genes: list[float], layout: Layout = Layout(), tol: float = DOWN_TO
     beest = beest_measures(trace.foot, list(layout.phases))
     return Leg(genes=genes, layout=layout, jams=False, jam_reason=None, stride=foot.stride,
                step_height=foot.step_height, time_down=foot.time_down, distance=beest.distance,
-               bob=beest.bob, closest_to_jam=trace.closest_to_jam, fits=fits, trace=trace)
+               bob=beest.bob, closest_to_jam=trace.closest_to_jam, fits=fits, trace=trace,
+               tips=tips(beest_feet(trace.foot, list(layout.phases)), tol, CENTRE_OF_MASS_X_MM))

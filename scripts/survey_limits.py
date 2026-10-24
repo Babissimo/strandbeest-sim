@@ -1,8 +1,8 @@
 """Survey random working legs for the fixed limits of the second normalisation (decisions Q5).
 
 Each length is drawn uniformly within ±25% of Jansen's, on the standard layout, until 2,000 legs
-turn fully; each ingredient's limits are its 5th and 95th percentiles over those legs. Writes
-site/beest/limits.json.
+turn fully; each ingredient's limits are its 5th and 95th percentiles over those legs, except that
+an ingredient that is only ever 0 or 1 takes those as its limits. Writes site/beest/limits.json.
 
     uv run scripts/survey_limits.py
 """
@@ -23,10 +23,12 @@ LEGS = 2000
 SPREAD = 0.25
 SEED = 1
 PERCENTILES = (5, 95)
+# Ingredients that are only ever 0 or 1; their limits are 0 and 1, not percentiles.
+WHOLE_RANGE = {"upright": [0.0, 1.0]}
 
 
 def survey(legs: int = LEGS, spread: float = SPREAD, seed: int = SEED) -> dict[str, list[float]]:
-    """Each ingredient's low and high percentile over `legs` random working legs."""
+    """Each ingredient's low and high percentile over `legs` random working legs, or WHOLE_RANGE."""
     rng = random.Random(seed)
     jansen = jansen_lengths()
     values: dict[str, list[float]] = {name: [] for name in INGREDIENTS}
@@ -40,6 +42,9 @@ def survey(legs: int = LEGS, spread: float = SPREAD, seed: int = SEED) -> dict[s
             values[name].append(value)
     limits = {}
     for name, sample in values.items():
+        if name in WHOLE_RANGE:
+            limits[name] = WHOLE_RANGE[name]
+            continue
         cuts = statistics.quantiles(sample, n=100, method="inclusive")
         limits[name] = [round(cuts[p - 1], 4) for p in PERCENTILES]
     return limits
@@ -48,7 +53,8 @@ def survey(legs: int = LEGS, spread: float = SPREAD, seed: int = SEED) -> dict[s
 def main() -> None:
     data = {
         "about": "Limits for normalisation by fixed limits: each ingredient's 5th and 95th "
-                 "percentiles over random working legs. Written by scripts/survey_limits.py.",
+                 "percentiles over random working legs, or 0 and 1 for an ingredient that is only "
+                 "ever 0 or 1. Written by scripts/survey_limits.py.",
         "legs": LEGS,
         "spread": SPREAD,
         "seed": SEED,

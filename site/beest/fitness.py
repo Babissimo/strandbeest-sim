@@ -16,7 +16,7 @@ from .leg import Leg
 
 # Each ingredient is read from the Leg attribute of the same name; True when higher is better.
 INGREDIENTS: dict[str, bool] = {"distance": True, "stride": True, "step_height": True,
-                                "time_down": True, "flatness": False}
+                                "time_down": True, "flatness": False, "upright": True}
 DEFAULT_WEIGHTS: dict[str, float] = {"distance": 1.0, "step_height": 0.5}
 # "jansen" divides by Jansen's value; "limits" maps fixed limits onto 0–1; "generation" maps each
 # generation's own lowest and highest onto 0–1.
