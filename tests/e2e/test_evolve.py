@@ -101,10 +101,14 @@ def test_default_run_completes(evolve: Page) -> None:
     walked = arena.run(final.run_best_genes, final.run_best_layout)
     assert not walked.tipped
     expect(root).to_have_attribute("data-run-winner-walks", "true", timeout=ARENA_TIMEOUT_MS)
-    assert float(root.get_attribute("data-run-arena-distance")) == pytest.approx(walked.distance,
-                                                                                abs=0.5)
-    expect(column(evolve, "latest").locator('[data-check="arena"]')).to_have_text(
-        f"✓ Walks in the arena without falling over: {walked.distance:.0f} mm a turn")
+    # Pyodide's pymunk does not repeat CPython's physics to the bit, so the distances drift apart.
+    shown = float(root.get_attribute("data-run-arena-distance"))
+    assert shown == pytest.approx(walked.distance, rel=0.01)
+    check = column(evolve, "latest").locator('[data-check="arena"]')
+    expect(check).to_have_text(
+        re.compile(r"^✓ Walks in the arena without falling over: \d+ mm a turn$"))
+    # The tick gives whole mm; the attribute holds the distance to 2 decimal places.
+    assert int(re.search(r"\d+", check.inner_text()).group()) == pytest.approx(shown, abs=0.51)
     # The grid shows the last generation, every beest of it.
     expect(root).to_have_attribute("data-population", str(ga.POP_SIZE))
     expect(root).to_have_attribute("data-population-generation", str(ga.GENERATIONS - 1))
@@ -302,7 +306,7 @@ def test_design_start_takes_the_leg_tab(evolve: Page) -> None:
 
 
 def test_best_of_the_run_beside_the_latest(evolve: Page) -> None:
-    # With no elites the GA loses generation 0's best, which the run's column keeps.
+    # With no elites the GA loses an earlier generation's best, which the run's column keeps.
     settings = ga.RunSettings(elite=0, pop=10, generations=6, seed=2)
     final = ga.run(settings)
     assert final.run_best_genes != final.best_genes

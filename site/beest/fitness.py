@@ -32,7 +32,7 @@ def _surveyed_limits() -> dict[str, tuple[float, float]]:
 
 
 def fixed_limits() -> dict[str, tuple[float, float]]:
-    """The surveyed limits of each ingredient, as a fresh dict."""
+    """The fixed limits of each ingredient in limits.json, as a fresh dict."""
     return dict(_surveyed_limits())
 
 
@@ -46,7 +46,7 @@ class FitnessSettings:
     """How the settings route scores a beest.
 
     An ingredient missing from `weights` weighs 0; missing from `flip`, it is flipped when lower
-    is better; missing from `limits`, it uses the surveyed limits.
+    is better; missing from `limits`, it uses the limits in limits.json.
     """
     weights: dict[str, float] = field(
         default_factory=lambda: {name: DEFAULT_WEIGHTS.get(name, 0.0) for name in INGREDIENTS})

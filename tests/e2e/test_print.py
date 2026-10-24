@@ -109,7 +109,7 @@ def test_print_media(page: Page) -> None:
 
 
 def test_template_is_the_best_of_the_run(page: Page) -> None:
-    # With no elites the GA loses generation 0's best, and the template keeps to it.
+    # With no elites the GA loses an earlier generation's best, and the template keeps to it.
     final = ga.run(ga.RunSettings(elite=0, pop=10, generations=6, seed=2))
     assert final.run_best_genes != final.best_genes
     root = open_mode(page, "evolve")

@@ -166,6 +166,27 @@ def test_limits_file_covers_every_ingredient():
         assert low < high
 
 
+def test_fixed_limits_reach_past_jansen(jansen):
+    # Distance tops out at twice Jansen's distance per turn and flatness at no bob (decisions Q5).
+    limits = fixed_limits()
+    assert limits["distance"][1] == pytest.approx(2 * jansen.distance, abs=1e-4)
+    assert limits["distance"][0] < 0
+    assert limits["flatness"][0] == 0.0
+    assert limits["flatness"][1] > jansen.flatness
+    # Stride and time down keep their surveyed limits, which Jansen is above.
+    assert limits["stride"][1] < jansen.stride
+    assert limits["time_down"][1] < jansen.time_down
+
+
+def test_jansen_scores_below_one_by_default(jansen):
+    settings = FitnessSettings()
+    leg = leg_from(jansen_lengths())
+    normalise([leg], settings, jansen)
+    assert 0 < leg.normalised["distance"] < 1
+    assert 0 < leg.normalised["flatness"] < 1
+    assert 0.5 < settings_fitness(settings)(leg) < 1
+
+
 def test_fixed_limits_is_a_fresh_copy():
     fixed_limits()["distance"] = (0, 0)
     assert fixed_limits()["distance"] != (0, 0)

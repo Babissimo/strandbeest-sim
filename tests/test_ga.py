@@ -359,9 +359,9 @@ def test_plain_population_is_small():
 
 
 def test_run_best_keeps_a_beest_the_ga_lost():
-    # Without elites the GA's best in generation 0 is not carried on, and later ones score lower.
+    # Without elites an earlier generation's best is not carried on, and the last scores lower.
     seen = reports(ga.RunSettings(elite=0, seed=2, **SMALL))
-    assert seen[-1].best_score < seen[0].best_score
+    assert seen[-1].best_score < seen[-1].run_best_score
     record = -math.inf
     for report in seen:
         record = max(record, report.best_score)
@@ -370,7 +370,7 @@ def test_run_best_keeps_a_beest_the_ga_lost():
         assert report.run_best_score == found.best_score
         assert (report.run_best_genes, report.run_best_layout) == (found.best_genes,
                                                                    found.best_layout)
-    assert seen[-1].run_best_generation == 0
+    assert seen[-1].run_best_generation < seen[-1].generation
     assert seen[-1].run_best_genes != seen[-1].best_genes
 
 
