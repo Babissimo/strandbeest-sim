@@ -20,9 +20,10 @@ GROUND = "#8c96a0"
 CRANK = "#e8590c"
 COUPLER = "#1f5fbf"
 ROCKER = "#2b8a3e"
+LINK = "#495057"
 TRACE = "#c2255c"
 JAM = "#c62828"
-BAND = "rgba(31, 95, 191, 0.12)"
+BAND = "rgba(31, 95, 191, 0.2)"
 PAPER = "#ffffff"
 
 FONT = "600 13px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
@@ -90,6 +91,10 @@ class View:
     def px(self, p: Point) -> tuple[float, float]:
         """Where a point in mm lands on the canvas, in px from the top left."""
         return self._ox + p[0] * self.scale, self._oy - p[1] * self.scale
+
+    def mm(self, px: float) -> float:
+        """A distance in px as mm at the current scale."""
+        return px / self.scale if self.scale else 0.0
 
     def clear(self) -> None:
         self.ctx.clearRect(0, 0, self.width, self.height)
@@ -215,17 +220,31 @@ class View:
 
     def text(self, p, label: str, colour: str = MUTED, world: bool = True) -> None:
         """A short label centred on `p` (mm, or px when `world` is false), with a paper halo."""
+        self.labels([(self.px(p) if world else p, label)], colour, world=False)
+
+    def labels(self, items: list[tuple[Point, str]], colour: str = MUTED,
+               world: bool = True) -> None:
+        """Several short labels, each centred on its point, with a paper halo."""
         ctx = self.ctx
-        x, y = self.px(p) if world else p
         ctx.font = FONT
         ctx.textAlign = "center"
         ctx.textBaseline = "middle"
         ctx.lineJoin = "round"
         ctx.lineWidth = 4
         ctx.strokeStyle = PAPER
-        ctx.strokeText(label, x, y)
         ctx.fillStyle = colour
-        ctx.fillText(label, x, y)
+        for p, label in items:
+            x, y = self.px(p) if world else p
+            ctx.strokeText(label, x, y)
+            ctx.fillText(label, x, y)
+
+    def dimension(self, p: Point, q: Point, label: str, colour: str = INK) -> None:
+        """A measured length from p to q in mm, with end ticks and its label beneath."""
+        (x0, y0), (x1, y1) = self.px(p), self.px(q)
+        ticks = "".join(f"M{x:.1f} {y - 5:.1f}V{y + 5:.1f}" for x, y in ((x0, y0), (x1, y1)))
+        self.ctx.lineCap = "round"
+        self._stroke(window.Path2D.new(f"M{x0:.1f} {y0:.1f}L{x1:.1f} {y1:.1f}{ticks}"), colour, 2)
+        self.text(((x0 + x1) / 2, (y0 + y1) / 2 + 13), label, colour, world=False)
 
     def _stroke(self, shape, colour: str, width: float) -> None:
         ctx = self.ctx

@@ -10,14 +10,15 @@ import math
 from pyscript import document
 
 from app import draw
-from app.controls import Animator, Slider, shown, swings
+from app.controls import Animator, Slider, announce, shown, swings
 from beest.geometry import DRAW_ANGLES, FourBarTrace, Point, trace_four_bar
+from beest.leg import LENGTH_BOUNDS
 
 LINKS = ("ground", "crank", "coupler", "rocker")
 COLOURS = {"ground": draw.GROUND, "crank": draw.CRANK, "coupler": draw.COUPLER,
            "rocker": draw.ROCKER}
-# Hole-to-hole mm that fits on a lolly stick (decisions Q16).
-STICK_BOUNDS = (10.0, 104.0)
+# Hole-to-hole mm that fits on a lolly stick, as for the leg's sticks (decisions Q16).
+STICK_BOUNDS = LENGTH_BOUNDS["b"]
 # A crank-rocker: the crank is the shortest stick and S + L < P + Q.
 DEFAULT_LENGTHS = {"ground": 60.0, "crank": 20.0, "coupler": 60.0, "rocker": 50.0}
 DEFAULT_ALONG = 30.0
@@ -110,10 +111,7 @@ class FourBarMode:
             detail.textContent = rule
             self.grashof.replaceChildren(heading, meaning, document.createElement("br"), detail)
         warning = f"This linkage jams: {trace.jam_reason}.{swings(trace)}" if trace.jammed else ""
-        # The warning stays on the page, empty and out of sight when there is no jam, so screen
-        # readers announce it as it fills; it is rewritten only when it changes.
-        if self.warning.textContent != warning:
-            self.warning.textContent = warning
+        announce(self.warning, warning)
         self.badge.hidden = not trace.figure_eight
 
     def unassembled(self) -> list[tuple[Point, float]]:
