@@ -10,7 +10,7 @@ from fractions import Fraction
 import pytest
 
 from beest import ga
-from beest.fitness import FitnessSettings
+from beest.fitness import FitnessSettings, normalise
 from beest.geometry import LENGTH_NAMES
 from beest.leg import LENGTH_BOUNDS, PAIRS_BOUNDS, RANDOM_SPREAD, Layout, jansen_lengths, leg_from
 from beest.student_default import EDITOR, SOURCE, student_functions
@@ -599,8 +599,17 @@ def test_student_default_runs():
     seen = reports(ga.RunSettings(generations=3), fitness, mutate)
     assert [r.evaluations for r in seen] == [30, 60, 90]
     assert seen[-1].best_score > 0
-    leg = leg_from(seen[-1].best_genes)
-    assert seen[-1].best_score == pytest.approx(leg.stride + 0.5 * leg.step_height)
+    # The mean of distance and flipped flatness, as the settings route's default (decisions S5).
+    leg = leg_from(seen[-1].best_genes, seen[-1].best_layout)
+    normalise([leg], FitnessSettings(), leg_from(jansen_lengths()))
+    assert seen[-1].best_score == pytest.approx(
+        (leg.normalised["distance"] + 1 - leg.normalised["flatness"]) / 2)
+
+
+@pytest.mark.parametrize("normalisation", ("jansen", "limits", "generation"))
+def test_student_default_repeats_the_settings_route(normalisation):
+    settings = ga.RunSettings(seed=3, fitness=FitnessSettings(normalisation=normalisation), **SMALL)
+    assert reports(settings, *student_functions(SOURCE)) == reports(settings)
 
 
 def test_student_default_repeats_with_seed():

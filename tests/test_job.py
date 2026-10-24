@@ -9,8 +9,8 @@ from beest.fitness import FitnessSettings
 from beest.student_default import SOURCE
 
 SMALL = {"pop": 6, "generations": 4}
-# The last line of the default fitness, line 9 of SOURCE.
-SCORE = "return leg.stride + 0.5 * leg.step_height"
+# The last line of the default fitness, line 14 of SOURCE.
+SCORE = "return (distance + (1 - bob)) / 2"
 
 
 def request(settings: dict, source: str | None = None) -> str:
@@ -107,10 +107,10 @@ def test_student_source_runs():
     ("source", "line", "words"),
     [
         ("def fitness(leg)\n    return 0\n", 1, "SyntaxError"),
-        (SOURCE.replace(SCORE, "return leg.stride / 0"), 9, "ZeroDivisionError"),
+        (SOURCE.replace(SCORE, "return leg.stride / 0"), 14, "ZeroDivisionError"),
         (SOURCE.replace(SCORE, "return None"), 6, "fitness returned None"),
         ("def fitness(leg):\n    return 0\n", None, "mutate(genes, rate)"),
-        (SOURCE.replace(SCORE, "exit()"), 9, "SystemExit on line 9"),
+        (SOURCE.replace(SCORE, "exit()"), 14, "SystemExit on line 14"),
         ("raise SystemExit('bye')\n" + SOURCE, 1, "SystemExit on line 1: bye"),
         ("class Quit(BaseException):\n    pass\nraise Quit()\n", 3, "Quit on line 3"),
     ],
@@ -139,7 +139,7 @@ def test_traceback_shows_the_editor_lines(comment):
                                                                      f"import clamp{comment}\n")
     result, _ = carry_out(SMALL, source)
     trace = result["error"]["traceback"]
-    assert '"<editor>", line 9, in fitness\n    return leg.stride / 0\n' in trace
+    assert '"<editor>", line 14, in fitness\n    return leg.stride / 0\n' in trace
 
 
 def test_crash_comes_back_with_its_traceback(monkeypatch):

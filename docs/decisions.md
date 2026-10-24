@@ -150,8 +150,11 @@ Python draws through the canvas 2D API; the graph is drawn the same way. No char
   winners that fall. Changed by Al (Claude's recommendation at his request, checked in the arena).
 - **S4 Four-bar layout.** Crank pivot at the origin, rocker pivot at (ground, 0). The coupler joint
   takes the max-y intersection at θ = 0, then continuity as in Q14.
-- **S5 Slide code.** The build has the slide names but not the slide code. The starting `fitness`
-  and `mutate` are written from the brief's §4; Al compares them with the slides on Friday.
+- **S5 Starting code.** The code route's starting `fitness` scores as the settings route's default
+  does (S3): 0 for a jammed beest, otherwise the mean of `leg.normalised["distance"]` and
+  `1 - leg.normalised["flatness"]`, under whichever normalisation the run uses. With the weights,
+  flips and mutation size left at their defaults, the two routes give the same run for the same
+  seed. The starting `mutate` is written from the brief's §4. Changed by Al.
 - **S6 Student-facing genes.** The functions students see (`random_genes`, `mutate`, `crossover`,
   `clamp`, `leg_from`) take and return a plain list of 13 lengths in the order a–m, as GA slides
   usually show. The layout genes (`pairs`, `phases`) travel beside the list inside the engine.
@@ -532,5 +535,5 @@ Append any place where the simulator and the slides now differ.
   does not apply.
 - Students can read `leg.tips` and `leg.upright`, and there is a sixth ingredient, `upright`
   (B67, B69).
-- The settings route's default fitness is distance and flatness under the fixed limits (S3); the
-  slides' example `fitness`, the code route's starting text, still scores stride and step height.
+- Both routes' default fitness scores distance and flatness (S3, S5); the slides' example
+  `fitness` rewards stride and step height.

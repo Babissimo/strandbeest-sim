@@ -13,10 +13,12 @@ pytestmark = pytest.mark.e2e
 
 START_TIMEOUT_MS = 90_000
 RUN_TIMEOUT_MS = 60_000
-# The last line of the default fitness, line 9 of SOURCE, inside `def fitness` on line 6.
-SCORE = "return leg.stride + 0.5 * leg.step_height"
+# The last line of the default fitness, line 14 of SOURCE, inside `def fitness` on line 6.
+SCORE = "return (distance + (1 - bob)) / 2"
 FITNESS_LINE = 6
-SCORE_LINE = 9
+SCORE_LINE = 14
+# The starting code with its score changed.
+CHANGED = SOURCE.replace(SCORE, "return distance")
 # Fails on the 601st beest scored, as generation 20 (counting from 0) is scored; line 12 raises.
 LATE = SOURCE.replace("def fitness(leg):\n", """calls = []
 
@@ -103,7 +105,8 @@ def test_default_code_runs(code: Page) -> None:
     expected = ga.run(ga.RunSettings(generations=10), *student_functions(SOURCE))
     assert root.get_attribute("data-best-score") == repr(expected.best_score)
     expect(code.locator(".ev-legend li")).to_have_text(["Run 1: GA, your code, seed 1"])
-    # Back on the settings route, the same settings score by the panel.
+    # Back on the settings route, the same settings score by the panel, whose defaults score as
+    # the starting code does.
     code.get_by_label("the settings").check()
     expect(root).to_have_attribute("data-route", "settings")
     expect(code.locator(".code-panel")).to_be_hidden()
@@ -111,6 +114,7 @@ def test_default_code_runs(code: Page) -> None:
     expect(root).to_have_attribute("data-status", "ready", timeout=START_TIMEOUT_MS)
     run_and_wait(code)
     expect(code.locator(".ev-legend li").last).to_have_text("Run 2: GA, seed 1")
+    assert root.get_attribute("data-best-score") == repr(expected.best_score)
 
 
 def test_syntax_error_names_line(code: Page) -> None:
@@ -137,14 +141,14 @@ def test_syntax_error_names_line(code: Page) -> None:
 def test_exception_shows_traceback(code: Page) -> None:
     set_code(code, SOURCE.replace(SCORE, "return leg.stride / 0"))
     run(code)
-    expect_halted(code, SCORE_LINE, "ZeroDivisionError on line 9: division by zero",
+    expect_halted(code, SCORE_LINE, f"ZeroDivisionError on line {SCORE_LINE}: division by zero",
                   "    return leg.stride / 0")
     traceback = code.locator(".ev-traceback")
     expect(traceback).to_be_visible()
     traceback.locator("summary").click()
     shown = traceback.locator("pre")
     expect(shown).to_be_visible()
-    expect(shown).to_contain_text('File "<editor>", line 9, in fitness')
+    expect(shown).to_contain_text(f'File "<editor>", line {SCORE_LINE}, in fitness')
     expect(shown).to_contain_text("return leg.stride / 0")
     expect(shown).to_contain_text("ZeroDivisionError: division by zero")
     # Only the editor's lines: none of the simulator's own.
@@ -223,13 +227,12 @@ def test_endless_loop_stop(code: Page) -> None:
 
 
 def test_code_survives_reload(code: Page) -> None:
-    changed = SOURCE.replace("0.5 * leg.step_height", "0.25 * leg.step_height")
-    set_code(code, changed)
+    set_code(code, CHANGED)
     code.reload()
     expect(mode(code)).to_have_attribute("data-status", "ready", timeout=START_TIMEOUT_MS)
     expect(mode(code)).to_have_attribute("data-route", "code")
     expect(code.get_by_label("my code")).to_be_checked()
-    assert code_text(code) == changed
+    assert code_text(code) == CHANGED
     # Reset asks first, and keeps the code when the answer is no. It leaves a message about the
     # settings alone.
     code.locator("#ev-pop").fill("")
@@ -244,7 +247,7 @@ def test_code_survives_reload(code: Page) -> None:
 
     code.once("dialog", lambda dialog: answer(dialog, False))
     reset.click()
-    assert code_text(code) == changed
+    assert code_text(code) == CHANGED
     code.once("dialog", lambda dialog: answer(dialog, True))
     reset.click()
     assert code_text(code) == SOURCE
@@ -268,11 +271,11 @@ def test_blocked_storage(page: Page) -> None:
     page.get_by_label("my code").check()
     assert code_text(page) == SOURCE
     expect(page.locator(".ev-not-kept")).to_be_hidden()
-    set_code(page, SOURCE.replace("0.5 * leg.step_height", "0.25 * leg.step_height"))
+    set_code(page, CHANGED)
     expect(page.locator(".ev-not-kept")).to_be_visible()
     set_code(page, SOURCE)
     expect(page.locator(".ev-not-kept")).to_be_hidden()
-    set_code(page, SOURCE.replace("0.5 * leg.step_height", "0.25 * leg.step_height"))
+    set_code(page, CHANGED)
     stop_after(page, 2)
     run_and_wait(page)
     expect(mode(page)).to_have_attribute("data-points", "2")
