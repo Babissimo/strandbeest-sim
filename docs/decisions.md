@@ -305,6 +305,7 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   dashed, x is "Evaluations (beests scored)". "Relative to this generation" labels the axis when
   every run on the graph uses it, otherwise the legend marks those runs. Hovering shows each run's
   numbers. The ingredients view has one small panel per ingredient, each on its own scale.
+  Confirmed (Al left the number to Claude).
 - **B48 Best beests panel** shows two beests side by side: the engine's best of the latest
   generation and the best of the whole run so far (B85), each labelled with the run and its
   generation, with its own numbers and winner checks. When they are the same beest the run's column
@@ -518,8 +519,7 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
 
 Most important first, each with what it blocks and the provisional answer the build went ahead with.
 
-- **Runs on one graph.** The graph keeps the last 8 runs (B47), a ninth taking the oldest's place.
-  Is that enough for a lesson's comparisons? Blocks nothing. Built on 8.
+None open.
 
 ## Slide edits for Al
 
