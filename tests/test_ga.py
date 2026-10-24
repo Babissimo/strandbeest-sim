@@ -4,6 +4,7 @@ import math
 import pickle
 import random
 import traceback
+from dataclasses import replace
 from fractions import Fraction
 
 import pytest
@@ -238,6 +239,178 @@ def test_report_matches_its_best_beest():
         assert (final.best_jams, final.best_fits) == (leg.jams, leg.fits)
 
 
+def scored(settings, record=lambda leg: leg):
+    """Every beest the run scores, in order, as `record` gives it, and the run's reports."""
+    calls = []
+
+    def fitness(leg):
+        calls.append(record(leg))
+        return leg.distance
+
+    return calls, reports(settings, fitness)
+
+
+def test_random_start_is_the_default():
+    assert ga.RunSettings().start == "random"
+    assert reports(ga.RunSettings(start="random", **SMALL)) == reports(ga.RunSettings(**SMALL))
+
+
+def test_turning_start_scores_only_beests_that_turn():
+    calls, seen = scored(ga.RunSettings(start="turning", pop=20, generations=1),
+                         lambda leg: leg.jams)
+    # Checking for jams scores nothing.
+    assert seen[-1].evaluations == len(calls) == 20
+    assert not any(calls)
+    # A random start jams most of the time.
+    calls, _ = scored(ga.RunSettings(pop=20, generations=1), lambda leg: leg.jams)
+    assert sum(calls) > 10
+
+
+def test_turning_start_gives_up_plainly():
+    # No leg keeps every pair of links 50 mm from failing to meet.
+    calls = []
+    with pytest.raises(ga.StartError, match=f"{ga.START_TRIES} tries"):
+        ga.run(ga.RunSettings(start="turning", margin=50, **SMALL), calls.append)
+    assert calls == []
+
+
+@pytest.mark.parametrize("start", ["jansen", "design"])
+def test_leg_and_mutants_start(start):
+    design = [x * 1.05 for x in jansen_lengths()]
+    leg = jansen_lengths() if start == "jansen" else design
+    settings = ga.RunSettings(start=start, start_genes=design, pop=10, generations=1, rate=0.5,
+                              size=2.0, mask=frozenset("bcd"))
+    calls, _ = scored(settings, lambda leg: list(leg.genes))
+    assert calls[0] == leg
+    for genes in calls[1:]:
+        assert in_bounds(genes)
+        # Lengths outside the mask keep the leg's own.
+        assert [x for name, x in zip(LENGTH_NAMES, genes) if name not in "bcd"] == [
+            x for name, x in zip(LENGTH_NAMES, leg) if name not in "bcd"]
+    assert any(genes != leg for genes in calls[1:])
+    # Mutated with the engine's mutate at the run's rate and size, so a rate of 0 copies the leg.
+    calls, _ = scored(replace(settings, rate=0), lambda leg: list(leg.genes))
+    assert all(genes == leg for genes in calls)
+
+
+def test_start_repeats_with_seed():
+    for start in ga.STARTS:
+        settings = ga.RunSettings(start=start, start_genes=jansen_lengths(), seed=5, **SMALL)
+        assert reports(settings) == reports(settings)
+
+
+def test_hill_climbing_starts_from_the_start():
+    seen = reports(ga.RunSettings(preset="hill", start="jansen", **SMALL))
+    assert seen[0].best_genes == jansen_lengths()
+    _, seen = scored(ga.RunSettings(preset="hill", start="turning", **SMALL))
+    assert not seen[0].best_jams
+
+
+def test_random_search_draws_as_it_starts():
+    # Every generation's newcomers are made the way the first ones were.
+    calls, _ = scored(ga.RunSettings(preset="random", start="turning", pop=8, generations=4),
+                      lambda leg: leg.jams)
+    assert len(calls) == 32 and not any(calls)
+    calls, _ = scored(ga.RunSettings(preset="random", start="jansen", rate=0, pop=8,
+                                     generations=4), lambda leg: list(leg.genes))
+    assert all(genes == jansen_lengths() for genes in calls)
+
+
+def test_report_carries_the_generation():
+    def distance(leg):
+        return leg.distance
+
+    seen = reports(ga.RunSettings(seed=3, **SMALL), distance)
+    for report in seen:
+        assert len(report.population) == SMALL["pop"]
+        for member in report.population:
+            leg = leg_from(member.genes, member.layout)
+            assert (member.score, member.jams) == (leg.distance, leg.jams)
+        assert max(m.score for m in report.population) == report.best_score
+        assert report.mean_score == pytest.approx(
+            sum(m.score for m in report.population) / SMALL["pop"])
+
+
+def test_hill_climbing_reports_parent_and_child():
+    seen = reports(ga.RunSettings(preset="hill", seed=5, **SMALL), lambda leg: leg.distance)
+    assert len(seen[0].population) == 1
+    for before, report in zip(seen, seen[1:]):
+        parent, child = report.population
+        assert (parent.genes, parent.score) == (before.best_genes, before.best_score)
+        assert report.best_score == max(parent.score, child.score)
+
+
+def test_random_search_reports_its_newcomers():
+    relative = FitnessSettings(normalisation="generation")
+    for fitness in (FitnessSettings(), relative):
+        seen = reports(ga.RunSettings(preset="random", fitness=fitness, **SMALL))
+        assert all(len(report.population) == SMALL["pop"] for report in seen)
+
+
+def test_plain_population_is_small():
+    final = ga.run(ga.RunSettings(generations=1))
+    plain = final.as_dict()["population"]
+    assert len(plain) == ga.POP_SIZE
+    for member, beest in zip(plain, final.population):
+        assert member["genes"] == [round(x, ga.POPULATION_DECIMALS) for x in beest.genes]
+        assert member["phases"] == list(beest.layout.phases)
+        assert (member["score"], member["jams"]) == (beest.score, beest.jams)
+    assert len(json.dumps(plain)) < 6000
+
+
+def test_run_best_keeps_a_beest_the_ga_lost():
+    # Without elites the GA's best in generation 0 is not carried on, and later ones score lower.
+    seen = reports(ga.RunSettings(elite=0, seed=2, **SMALL))
+    assert seen[-1].best_score < seen[0].best_score
+    record = -math.inf
+    for report in seen:
+        record = max(record, report.best_score)
+        assert report.run_best_score == record
+        found = seen[report.run_best_generation]
+        assert report.run_best_score == found.best_score
+        assert (report.run_best_genes, report.run_best_layout) == (found.best_genes,
+                                                                   found.best_layout)
+    assert seen[-1].run_best_generation == 0
+    assert seen[-1].run_best_genes != seen[-1].best_genes
+
+
+def test_run_best_matches_its_beest():
+    for preset in ga.PRESETS:
+        final = ga.run(ga.RunSettings(preset=preset, elite=0, seed=2, **SMALL))
+        leg = leg_from(final.run_best_genes, final.run_best_layout)
+        assert final.run_best_values["distance"] == leg.distance
+        assert final.run_best_values["flatness"] == leg.bob
+        assert (final.run_best_jams, final.run_best_fits) == (leg.jams, leg.fits)
+
+
+def test_run_best_follows_a_search_that_keeps_its_best():
+    # Elites, hill climbing's parent and random search's best so far: the latest best is the
+    # run's, and it keeps the generation it first led.
+    for settings in (ga.RunSettings(seed=1, **SMALL), ga.RunSettings(preset="hill", seed=5, **SMALL),
+                     ga.RunSettings(preset="random", seed=1, **SMALL)):
+        seen = reports(settings)
+        for report in seen:
+            assert (report.run_best_genes, report.run_best_layout, report.run_best_score) == (
+                report.best_genes, report.best_layout, report.best_score)
+            first = next(r for r in seen if r.best_genes == report.best_genes)
+            assert report.run_best_generation == first.generation
+
+
+def test_run_best_takes_a_later_tie():
+    # Every beest scores the same, so each generation's best is the run's.
+    seen = reports(ga.RunSettings(elite=0, seed=1, **SMALL), lambda leg: 1)
+    assert [r.run_best_generation for r in seen] == list(range(SMALL["generations"]))
+    assert all(r.run_best_genes == r.best_genes for r in seen)
+
+
+def test_run_best_under_generation_normalisation_is_the_latest():
+    relative = FitnessSettings(normalisation="generation")
+    seen = reports(ga.RunSettings(elite=0, seed=2, fitness=relative, **SMALL))
+    for report in seen:
+        assert (report.run_best_genes, report.run_best_score) == (report.best_genes,
+                                                                  report.best_score)
+
+
 def test_all_jammed_population_runs():
     for preset in ga.PRESETS:
         for normalisation in ("jansen", "limits", "generation"):
@@ -398,6 +571,7 @@ def test_report_is_plain():
     plain = final.as_dict()
     assert json.loads(json.dumps(plain)) == plain
     assert plain["best_layout"] == {"pairs": 3, "phases": [0.0, 120.0, 240.0]}
+    assert plain["run_best_layout"] == plain["best_layout"]
     assert set(plain["best_values"]) == {"distance", "stride", "step_height", "time_down", "flatness",
                                          "upright"}
 
@@ -407,7 +581,9 @@ def test_report_is_plain():
                                  {"budget": 0}, {"elite": -1}, {"tol": -1}, {"pop": 2},
                                  {"size": math.nan}, {"rate": -0.1}, {"tol": math.nan},
                                  {"margin": math.inf}, {"pop": 30.5}, {"budget": True},
-                                 {"generations": 2.0}])
+                                 {"generations": 2.0}, {"start": "best"}, {"start": "design"},
+                                 {"start_genes": [1.0] * 12}, {"start_genes": [math.nan] * 13},
+                                 {"start_genes": [True] * 13}])
 def test_bad_settings_are_refused(bad):
     with pytest.raises(ValueError):
         ga.RunSettings(**bad)

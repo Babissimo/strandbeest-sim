@@ -17,8 +17,9 @@ EVOLVE_START_TIMEOUT_MS = 90_000
 # The crank turns once a second, so this many turns take as many seconds.
 WALK_TURNS = 3
 NEW_BEST = "Evolve has found a new best beest. Press Reset to walk it."
-# Stands in for the GA worker. It runs the real GA, but the best beest it reports is the one the
-# run's seed picks, and each generation takes at least GENERATION_S, so Evolve shows every one.
+# Stands in for the GA worker. It runs the real GA, but the best beests it reports (of the
+# generation and of the run) are the ones the run's seed picks, and each generation takes at least
+# GENERATION_S, so Evolve shows every one.
 FAKE_WORKER = """
 import json
 import time
@@ -36,7 +37,14 @@ def best(seed, generation):
         # A new best every generation: Jansen's leg a little bigger each time, on 3 pairs.
         return [x * (1 + 0.01 * (generation + 1)) for x in jansen_lengths()], 3
     # Jansen's leg on 3 pairs, or the same lengths on 4.
-    return jansen_lengths(), {1: 3, 2: 4}[seed]
+    return jansen_lengths(), {1: 3, 2: 4, 4: 3}[seed]
+
+
+def run_best(seed, generation):
+    if seed == 4:
+        # The run's best is not the generation's: the same lengths on 2 pairs.
+        return jansen_lengths(), 2
+    return best(seed, generation)
 
 
 def run(request):
@@ -47,10 +55,11 @@ def run(request):
         while time.monotonic() < until:
             pass
         generation = json.loads(text)
-        genes, pairs = best(seed, generation["generation"])
-        generation["best_genes"] = genes
-        generation["best_layout"] = {"pairs": pairs,
-                                     "phases": [360 * k / pairs for k in range(pairs)]}
+        for kind, pick in (("best", best), ("run_best", run_best)):
+            genes, pairs = pick(seed, generation["generation"])
+            generation[f"{kind}_genes"] = genes
+            generation[f"{kind}_layout"] = {"pairs": pairs,
+                                            "phases": [360 * k / pairs for k in range(pairs)]}
         return sync.report(json.dumps(generation))
 
     return run_request(request, report)
@@ -195,6 +204,24 @@ def test_walk_goes_on_when_the_tab_is_opened_again(page: Page) -> None:
     expect(page.locator("#arena-message")).to_contain_text("The leg in the Leg tab has changed")
     expect(mode).to_have_attribute("data-status", "running")
     walks_on(page, turns(mode) + 0.2)
+
+
+def test_best_from_evolve_is_the_best_of_the_run(page: Page) -> None:
+    page.route("**/app/ga_worker.py", lambda route: route.fulfill(body=FAKE_WORKER))
+    page.goto("/#evolve")
+    evolve = page.locator("#evolve-mode")
+    expect(evolve).to_have_attribute("data-status", "ready", timeout=EVOLVE_START_TIMEOUT_MS)
+    page.locator('input[name="ev-limit"][value="generations"]').check()
+    page.locator("#ev-generations").fill("1")
+    page.locator("#ev-seed").fill("4")
+    page.get_by_role("button", name="Run", exact=True).click()
+    expect(evolve).to_have_attribute("data-same-best", "false", timeout=START_TIMEOUT_MS)
+    expect(evolve).to_have_attribute("data-status", "ready", timeout=START_TIMEOUT_MS)
+    page.get_by_role("link", name="Arena", exact=True).click()
+    mode = page.locator("#arena-mode")
+    expect(mode).to_have_attribute("data-status", "ready", timeout=START_TIMEOUT_MS)
+    page.locator("#arena-beest").select_option("evolved")
+    expect(mode).to_have_attribute("data-pairs", "2")
 
 
 def test_new_best_from_evolve_waits_for_reset(page: Page) -> None:

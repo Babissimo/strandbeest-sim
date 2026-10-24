@@ -6,6 +6,8 @@ import xml.etree.ElementTree as ET
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
+from beest import ga
+from beest.geometry import LENGTH_NAMES
 from beest.leg import Layout
 from beest.template import leg_template_svg
 
@@ -86,10 +88,13 @@ def test_print_media(page: Page) -> None:
     pages = int(root.get_attribute("data-template-pages"))
     assert pages >= 1
     expect(sheets(page)).to_have_count(pages)
-    # The template is the best beest's: its lengths (shown to 0.1 mm), one crank per pair.
-    lengths = dict(page.evaluate("""() => [...document.querySelectorAll('.ev-facts .lengths span')]
-        .map(span => [span.firstChild.textContent, Number(span.lastChild.textContent)])"""))
-    layout = page.locator(".ev-facts .layout").inner_text()
+    # The template is the run's best beest's, which is the latest generation's here: its lengths
+    # (shown to 0.1 mm), one crank per pair.
+    expect(root).to_have_attribute("data-same-best", "true")
+    shown = '.best-beest[data-best="latest"] .ev-facts'
+    lengths = dict(page.evaluate("""shown => [...document.querySelectorAll(`${shown} .lengths span`)]
+        .map(span => [span.firstChild.textContent, Number(span.lastChild.textContent)])""", shown))
+    layout = page.locator(f"{shown} .layout").inner_text()
     pairs = int(re.search(r"(\d+) pairs? of legs", layout)[1])
     sticks = page.locator("#template-print .stick")
     expect(sticks).to_have_count(11)
@@ -101,6 +106,28 @@ def test_print_media(page: Page) -> None:
     assert_only_template_prints(page, pages)
     # Once printing is over the page prints as itself again.
     assert_page_prints(page)
+
+
+def test_template_is_the_best_of_the_run(page: Page) -> None:
+    # With no elites the GA loses generation 0's best, and the template keeps to it.
+    final = ga.run(ga.RunSettings(elite=0, pop=10, generations=6, seed=2))
+    assert final.run_best_genes != final.best_genes
+    root = open_mode(page, "evolve")
+    expect(root).to_have_attribute("data-status", "ready", timeout=START_TIMEOUT_MS)
+    page.locator("details", has_text="More settings").locator("summary").click()
+    page.locator("#ev-elite").fill("0")
+    page.locator("#ev-pop").fill("10")
+    page.locator("#ev-seed").fill("2")
+    run_evolution(page, root, 6)
+    expect(root).to_have_attribute("data-same-best", "false")
+    page.get_by_role("button", name="Print the leg template").click()
+    lengths = dict(zip(LENGTH_NAMES, final.run_best_genes))
+    sticks = page.locator("#template-print .stick")
+    expect(sticks).to_have_count(11)
+    for k in range(11):
+        stick = sticks.nth(k)
+        name = stick.get_attribute("data-name")
+        assert float(stick.get_attribute("data-length")) == pytest.approx(lengths[name], abs=6e-4)
 
 
 def assert_page_prints(page: Page) -> None:

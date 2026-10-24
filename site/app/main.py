@@ -15,9 +15,10 @@ from app.leg_mode import LegMode
 
 leg = LegMode(document.getElementById("leg-mode"))
 arena = ArenaMode(document.getElementById("arena-mode"), playground=lambda: leg.lengths)
-# Evolve hands each best beest it shows to the arena.
+# Evolve hands the best beest of its run to the arena each time it shows one.
 modes = [FourBarMode(document.getElementById("fourbar-mode")), leg,
-         EvolveMode(document.getElementById("evolve-mode"), on_best=arena.offer_evolved), arena]
+         EvolveMode(document.getElementById("evolve-mode"), on_best=arena.offer_evolved,
+                    design=lambda: leg.lengths), arena]
 
 status = document.getElementById("status")
 status.dataset.python = ".".join(str(part) for part in sys.version_info[:3])

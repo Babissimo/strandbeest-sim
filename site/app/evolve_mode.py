@@ -1,13 +1,22 @@
-"""Evolve mode: the settings panel, runs in a worker, the progress graph and the best beest.
+"""Evolve mode: the settings panel, runs in a worker, the progress graph and the best beests.
 
 The GA runs in a PyScript worker (app/ga_worker.py), so the page stays responsive. The worker
 starts the first time the mode is on screen. Stop terminates it and starts a fresh one, which
 also ends code that never returns; so does a run of the editor's code, or a worker that fails.
+Two beests are shown side by side, the best of the latest generation and the best of the whole
+run so far, with every beest of a recent generation below them, all turned by one crank; the
+template and the arena take the run's best. Once a run ends, its best walks in the arena's physics
+on flat ground, a few physics steps each frame, for one more winner check.
 The root element mirrors the mode's state in `data-*` attributes: status (starting, ready,
 running or error), generation and evaluations (of the latest report in the run), best-score,
-series (runs on the graph), points (in the latest run), winner-turns, winner-fits, graph-view,
-axis (the score axis's title), route (settings or code) and, when a run fails, error and, for
-an error in the editor's code with a line, error-line.
+winner-turns and winner-fits (the latest generation's best), run-best-score,
+run-best-generation, run-winner-turns and run-winner-fits (the run's best), same-best (whether
+they are one beest), run-winner-walks (checking, true, false or error, once a run has ended)
+and run-arena-distance (mm a turn in the arena), population and population-generation (the
+beests in the grid and their generation), the crank's playing, angle and drawn-to, series (runs
+on the graph), points (in the latest run), graph-view, axis (the score axis's title), route
+(settings or code), design-jams (while the start is the Leg tab's design) and, when a run fails,
+error and, for an error in the editor's code with a line, error-line.
 """
 from __future__ import annotations
 
@@ -19,21 +28,24 @@ import time
 import traceback
 from collections.abc import Callable
 
-from pyodide.ffi import create_proxy
+from pyodide.ffi import create_once_callable, create_proxy, jsnull
 from pyscript import PyWorker, document, window
 
 from app import draw, job
+from app.arena_mode import minus, sentence
 from app.beest_picture import BeestPicture
-from app.controls import listen
+from app.controls import Animator, listen
 from app.editor import CodePanel
 from app.graph import MAX_SERIES, Graph, label, reading, short, title
 from app.leg_mode import TOLERANCE_BOUNDS
+from app.physics import engine
+from app.population import PopulationGrid
 from app.printing import TemplateButtons
 from app.storage import keep, recall
 from beest import ga
 from beest.fitness import INGREDIENTS, NORMALISATIONS, fixed_limits
-from beest.geometry import JAM_MARGIN_MM, LENGTH_NAMES
-from beest.leg import DOWN_TOLERANCE_MM, LENGTH_BOUNDS, STICKS, Layout
+from beest.geometry import ANGLES, DRAW_ANGLES, JAM_MARGIN_MM, LENGTH_NAMES, trace_leg
+from beest.leg import DOWN_TOLERANCE_MM, LENGTH_BOUNDS, RANDOM_SPREAD, STICKS, Layout
 from beest.template import leg_template_svg
 
 WORKER = "./app/ga_worker.py"
@@ -41,8 +53,23 @@ WORKER_CONFIG = "./worker.toml"
 PYODIDE = "./vendor/pyodide/pyodide.mjs"
 # A worker not ready after this long counts as failed.
 WORKER_START_S = 90
-# During a run the best beest is drawn again at most this often.
+# During a run the best beests are drawn again at most this often.
 BEST_EVERY_MS = 250
+# During a run the grid takes a new generation at most this often, in s; tracing one takes a good
+# part of the spare time in that many frames. A run's last generation is always shown.
+POPULATION_EVERY_S = 1.0
+# How long each frame may spend walking the run's best in the arena, in s, and how many physics
+# steps it takes between looks at the clock.
+ARENA_BUDGET_S = 0.008
+ARENA_STEPS = 50
+ARENA_CHECKING = "Checking that it walks in the arena…"
+ARENA_FAILED = "The physics engine could not load, so the arena check cannot run."
+ARENA_FAULT = "Something went wrong in the arena, so the arena check cannot run."
+# The crank angles every beest picture shares: one turn, round and round.
+CRANK_TURN = [2 * math.pi * k / DRAW_ANGLES for k in range(DRAW_ANGLES)]
+# The two best beests on show, by the start of their fields' names in a report.
+BESTS = {"latest": "best_", "run": "run_best_"}
+BEST_FIELDS = ("score", "genes", "layout", "values", "jams", "fits")
 
 # The legend's name for each preset.
 PRESET_NAMES = {"ga": "GA", "hill": "Hill climbing", "random": "Random search"}
@@ -54,6 +81,8 @@ UNUSED = {"ga": set(), "hill": {"pop", "elite", "crossover"},
 CODE_UNUSED = {"size", "weights"}
 # Hill climbing breeds one beest at a time by mutation only, and the panel shows that.
 HILL_SETTINGS = {"pop": 1, "elite": 0, "crossover": "none"}
+# Hill climbing starts from a beest that turns fully, though the student may change that.
+HILL_START = "turning"
 # Where the browser keeps the chosen route.
 ROUTE_KEY = "strandbeest-sim.route"
 # Choosing these presets sets "Stop after" to a number of evaluations.
@@ -61,6 +90,17 @@ COMPARED_BY_BUDGET = {"hill", "random"}
 # Each choice in a drop-down: its words, and a line saying what it does. A choice missing here
 # shows under the engine's own name.
 DESCRIBED: dict[str, dict[str, tuple[str, str]]] = {
+    "start": {
+        "random": ("Random beests",
+                   f"Every length is drawn at random, within {RANDOM_SPREAD:.0%} of Jansen's."),
+        "turning": ("Random, turning fully",
+                    "Random beests, each drawn again until it turns all the way round. Checking "
+                    "this costs no evaluations."),
+        "jansen": ("Jansen and mutants",
+                   "Jansen's own leg, and copies of it changed by mutation."),
+        "design": ("Leg tab design",
+                   "The leg you set up in the Leg tab, and copies of it changed by mutation."),
+    },
     "preset": {
         "ga": ("Genetic algorithm (GA)",
                "The beests that score best are the most likely to become parents."),
@@ -87,7 +127,8 @@ DESCRIBED: dict[str, dict[str, tuple[str, str]]] = {
         "none": ("None", "The child is a copy of one parent before it mutates."),
     },
 }
-CHOICES = {"preset": ga.PRESETS, "normalisation": NORMALISATIONS, "crossover": ga.CROSSOVERS}
+CHOICES = {"preset": ga.PRESETS, "start": ga.STARTS, "normalisation": NORMALISATIONS,
+           "crossover": ga.CROSSOVERS}
 TICK, CROSS = "✓", "✗"
 
 
@@ -164,6 +205,8 @@ def panel_html() -> str:
     the fitness weights and the mutation size.</small>
 </fieldset>
 {_select("preset", "Search", default.preset)}
+{_select("start", "Start from", default.start)}
+<p class="warning ev-design-jams" role="status" hidden></p>
 <fieldset class="field" data-setting="limit">
   <legend>Stop after</legend>
   <label class="choice"><input type="radio" name="ev-limit" value="generations" checked>
@@ -190,7 +233,9 @@ def panel_html() -> str:
       <tbody>{"".join(rows)}</tbody>
     </table>
     <p class="hint">A beest that jams scores 0. Flip an ingredient when lower is better: it then
-      counts 1 − its normalised value.</p>
+      counts 1 − its normalised value. Upright is a quick check that the body always has a foot
+      down on each side of it, which is stricter than the arena; the winner checks walk the best
+      beest in the arena itself.</p>
   </div>
   <div class="limits" hidden>
     <table class="ingredients">
@@ -222,11 +267,21 @@ def panel_html() -> str:
 
 
 class SettingsForm:
-    """The settings panel, turned into RunSettings on demand."""
+    """The settings panel, turned into RunSettings on demand.
 
-    def __init__(self, panel):
+    `design` gives the Leg tab's 13 lengths, a to m, for the "design" start; without it that
+    start cannot be chosen. `on_start` runs when the start, or the jam margin it is checked at,
+    changes.
+    """
+
+    def __init__(self, panel, design: Callable[[], list[float]] | None = None,
+                 on_start: Callable[[], None] | None = None):
         self.panel = panel
+        self.design = design
+        self.on_start = on_start
         panel.innerHTML = panel_html()
+        if design is None:
+            self._get("start").querySelector('option[value="design"]').disabled = True
         self.preset = self._get("preset").value
         # "settings" or "code": what scores and mutates the beests.
         self.route = "settings"
@@ -236,6 +291,8 @@ class SettingsForm:
         self._limits_shown = {key: self._get(key).value for name in INGREDIENTS
                               for key in (f"lo-{name}", f"hi-{name}")}
         self._proxies = [listen(self._get("preset"), "change", self._preset_changed),
+                         listen(self._get("start"), "change", self._start_changed),
+                         listen(self._get("margin"), "input", self._margin_changed),
                          listen(self._get("normalisation"), "change", self._normalisation_changed)]
         for key in CHOICES:
             self._proxies.append(listen(self._get(key), "change",
@@ -243,6 +300,8 @@ class SettingsForm:
         for key in ("generations", "budget"):
             self._proxies.append(listen(self._get(key), "input",
                                         lambda event, key=key: self._choose_limit(key)))
+        # The default normalisation may be the fixed limits, whose table then shows.
+        self._normalisation_changed()
 
     def _get(self, key: str):
         return document.getElementById(f"ev-{key}")
@@ -254,20 +313,52 @@ class SettingsForm:
         """Grey out what the chosen preset ignores; hill climbing shows its own values."""
         chosen = self._get("preset").value
         if chosen == "hill" and self.preset != "hill":
-            self._saved = {key: self._get(key).value for key in HILL_SETTINGS}
-            for key, value in HILL_SETTINGS.items():
+            self._saved = {key: self._get(key).value for key in (*HILL_SETTINGS, "start")}
+            for key, value in (HILL_SETTINGS | {"start": HILL_START}).items():
                 self._get(key).value = str(value)
-            self._describe("crossover")
+            self._described_again()
         elif chosen != "hill" and self.preset == "hill":
             for key, value in self._saved.items():
-                self._get(key).value = value
-            self._describe("crossover")
+                # A start chosen while on hill climbing stays.
+                if key != "start" or self.start == HILL_START:
+                    self._get(key).value = value
+            self._described_again()
         if chosen in COMPARED_BY_BUDGET:
             # Searches are compared on the same number of evaluations (decisions Q17), and
             # hill climbing's 40 generations would be only 40 beests.
             self._choose_limit("budget")
         self.preset = chosen
         self._grey_out()
+
+    def _described_again(self) -> None:
+        """After hill climbing filled in or gave back its settings."""
+        self._describe("crossover")
+        self._describe("start")
+        if self.on_start is not None:
+            self.on_start()
+
+    @property
+    def start(self) -> str:
+        return self._get("start").value
+
+    def _start_changed(self, event=None) -> None:
+        self._grey_out()
+        if self.on_start is not None:
+            self.on_start()
+
+    def _margin_changed(self, event=None) -> None:
+        if self.on_start is not None:
+            self.on_start()
+
+    def design_genes(self) -> list[float]:
+        return [float(x) for x in self.design()]
+
+    def margin(self) -> float:
+        """The jam margin in its box, or the engine's when the box holds no usable number."""
+        try:
+            return self._read("margin", "Jam margin", low=0)
+        except ValueError:
+            return JAM_MARGIN_MM
 
     def set_route(self, route: str) -> None:
         """Choose what scores and mutates the beests, "settings" or "code"."""
@@ -280,7 +371,11 @@ class SettingsForm:
     def unused(self) -> set[str]:
         """The settings the chosen preset, on the chosen route, does not use."""
         preset = self._get("preset").value
-        return UNUSED.get(preset, set()) | (CODE_UNUSED if self.route == "code" else set())
+        unused = UNUSED.get(preset, set()) | (CODE_UNUSED if self.route == "code" else set())
+        # The copies of Jansen's leg or the design are made with the engine's mutate; hill
+        # climbing starts from the leg itself and makes none.
+        copies = self.start in ga.LEG_STARTS and preset != "hill"
+        return unused - {"rate", "size"} if copies else unused
 
     def _grey_out(self) -> None:
         unused = self.unused()
@@ -334,7 +429,10 @@ class SettingsForm:
             "tol": self._read("tol", "Down tolerance", False, *TOLERANCE_BOUNDS),
             "margin": self._read("margin", "Jam margin", low=0),
             "layout_mutates": "layout" not in unused and bool(self._get("layout").checked),
+            "start": self.start,
         }
+        if self.start == "design":
+            settings["start_genes"] = self.design_genes()
         if budget:
             settings["budget"] = self._read("budget", "Evaluations", True, 1)
         else:
@@ -393,10 +491,61 @@ def misfits(genes: list[float]) -> str:
     return "Does not fit on lolly sticks" + (f": {'; '.join(wrong)}" if wrong else "")
 
 
-def best_layout(report: dict) -> Layout:
-    """The layout of a report's best beest."""
-    layout = report["best_layout"]
+def best_of(report: dict, kind: str) -> dict:
+    """One of a report's best beests ("latest" or "run"): its score, genes, layout, values,
+    jams and fits."""
+    return {name: report[BESTS[kind] + name] for name in BEST_FIELDS}
+
+
+def layout_of(beest: dict) -> Layout:
+    layout = beest["layout"]
     return Layout(layout["pairs"], tuple(layout["phases"]))
+
+
+def facts_html(beest: dict, which: str) -> str:
+    """A best beest's winner checks, ingredients, lengths and layout, under `which` (HTML)."""
+    turns, fits = not beest["jams"], beest["fits"]
+    turns_text = f"{TICK} Turns fully" if turns else f"{CROSS} Jams: it cannot turn fully"
+    fits_text = f"{TICK} Fits on lolly sticks" if fits else f"{CROSS} {misfits(beest['genes'])}"
+    numbers = "".join(f"<dt>{html.escape(label(name))}</dt><dd>{reading(name, value)}</dd>"
+                      for name, value in beest["values"].items())
+    lengths = " ".join(f"<span><b>{name}</b> {length:.1f}</span>"
+                       for name, length in zip(LENGTH_NAMES, beest["genes"]))
+    layout = beest["layout"]
+    phases = ", ".join(f"{p:.0f}°" for p in layout["phases"])
+    return f"""
+<p class="which">{which}: score <b>{short(beest["score"])}</b></p>
+<ul class="checks">
+  <li class="{'ok' if turns else 'bad'}" data-check="turns">{turns_text}</li>
+  <li class="{'ok' if fits else 'bad'}" data-check="fits">{fits_text}</li>
+</ul>
+<dl class="numbers">{numbers}</dl>
+<p class="lengths">Lengths in mm: {lengths}</p>
+<p class="layout">{layout["pairs"]} pair{'' if layout["pairs"] == 1 else 's'} of legs, cranks at
+  {phases}</p>
+"""
+
+
+def arena_key(beest: dict) -> tuple:
+    """What identifies a best beest for the arena check: its lengths and throw angles."""
+    return tuple(beest["genes"]), tuple(beest["layout"]["phases"])
+
+
+async def next_frame() -> None:
+    """Waits for the browser's next animation frame, so the page draws in between."""
+    frame = asyncio.get_running_loop().create_future()
+    window.requestAnimationFrame(create_once_callable(lambda now: frame.set_result(now)))
+    await frame
+
+
+def same_note(relative: bool, since: int) -> str:
+    """What the run's column says when its best is the latest generation's best."""
+    if relative:
+        return ("The same beest as the best of the latest generation. Scores relative to each "
+                "generation cannot be compared between generations, so the latest best counts as "
+                "the best of the run.")
+    return (f"The same beest as the best of the latest generation. It has been the best of the "
+            f"run since generation {since}.")
 
 
 class Run:
@@ -414,9 +563,12 @@ class Run:
 
 
 class EvolveMode:
-    """`on_best` is given each best beest the panel shows: its 13 lengths and its layout."""
+    """`on_best` is given the run's best beest each time the panel shows the bests: its 13
+    lengths and its layout. `design` gives the Leg tab's lengths by name, for the "design" start.
+    """
 
-    def __init__(self, root, on_best: Callable[[list[float], Layout], None] | None = None):
+    def __init__(self, root, on_best: Callable[[list[float], Layout], None] | None = None,
+                 design: Callable[[], dict[str, float]] | None = None):
         self.root = root
         self.on_best = on_best
         self.status = ""
@@ -425,13 +577,22 @@ class EvolveMode:
         self.runs = 0
         self.best: dict | None = None
         self.best_run: Run | None = None
-        # The report whose best beest is on show, which the template prints.
+        # The report whose best beests are on show; the template prints the run's best.
         self.shown_best: dict | None = None
         self._shown: dict[str, str] = {}
         self._scheduled = False
         self._best_shown = False
-        # When the best beest was last drawn, in ms on the animation clock.
+        # When the best beests were last drawn, in ms on the animation clock.
         self._best_drawn = -math.inf
+        # When the grid was last offered a generation, in s.
+        self._population_offered = -math.inf
+        # The arena check of the run's best: its beest, state (as data-run-winner-walks shows it)
+        # and words; a new check or run ends the one under way.
+        self._arena: tuple[tuple, str, str] | None = None
+        self._arena_check = 0
+        # The column whose facts are the run's best beest's: its own, or the latest's when they
+        # are one beest.
+        self._run_column = "run"
         # What the status line last said about a run.
         self._said = ""
         # The error on show, and whether it is in the editor's code.
@@ -440,7 +601,11 @@ class EvolveMode:
         # Tasks still running; asyncio itself keeps only weak references to them.
         self._tasks: set[asyncio.Future] = set()
         self._pyodide = window.URL.new(PYODIDE, document.baseURI).href
-        self.form = SettingsForm(root.querySelector(".controls"))
+        design_genes = None if design is None else (
+            lambda: [design()[name] for name in LENGTH_NAMES])
+        self.form = SettingsForm(root.querySelector(".controls"), design_genes,
+                                 self._check_design)
+        self.design_warning = root.querySelector(".ev-design-jams")
         stage = root.querySelector(".stage")
         stage.innerHTML = STAGE_HTML
         self.code = CodePanel(stage, on_reset=self._code_reset)
@@ -450,12 +615,20 @@ class EvolveMode:
         self.progress = root.querySelector(".ev-progress")
         self.legend = root.querySelector(".ev-legend")
         self.readout = root.querySelector(".ev-readout")
-        self.facts = root.querySelector(".ev-facts")
+        self.columns = {kind: root.querySelector(f'.best-beest[data-best="{kind}"]')
+                        for kind in BESTS}
         canvas = root.querySelector(".ev-graph")
         self.graph = Graph(canvas, window)
         # The view only sizes the graph's canvas, at the screen's pixel density.
         self.graph_canvas = draw.View(canvas, self._graph_resized)
-        self.picture = BeestPicture(root, root.querySelector(".ev-beest"))
+        self.pictures = {kind: BeestPicture(column.querySelector(".ev-beest"),
+                                            self._pictures_resized, "The best beest appears here.")
+                         for kind, column in self.columns.items()}
+        self.population = PopulationGrid(root.querySelector(".ev-population"),
+                                         self._pictures_resized)
+        self.population_hint = root.querySelector(".ev-population-hint")
+        # One crank turns every picture, so they keep in step; it starts once there is a best.
+        self.animator = Animator(root, self._draw_beests)
         # Disabled until a run has a best beest to print.
         self.template = TemplateButtons(root, root.querySelector(".ev-template"),
                                         "Print the leg template", "strandbeest-leg-template",
@@ -466,6 +639,8 @@ class EvolveMode:
             listen(root.querySelector(".ev-clear"), "click", self._clear_clicked),
             listen(canvas, "pointermove", self._hover),
             listen(canvas, "pointerleave", self._hover),
+            # The Leg tab's design may have changed while this mode was hidden.
+            listen(window, "hashchange", self._check_design),
         ]
         for radio in root.querySelectorAll('input[name="ev-view"]'):
             self._proxies.append(listen(radio, "change", self._view_changed))
@@ -529,6 +704,7 @@ class EvolveMode:
     # Run, Stop and Clear graph
 
     def _run_clicked(self, event=None) -> None:
+        self._check_design()
         self.start_run(self.code.text if self.form.route == "code" else None)
 
     def start_run(self, source: str | None = None) -> bool:
@@ -542,6 +718,7 @@ class EvolveMode:
             self._show_error(str(exc))
             return False
         self._show_error(None)
+        self._end_arena_check()
         self.runs += 1
         name = PRESET_NAMES.get(settings.preset, settings.preset)
         coded = "" if source is None else ", your code"
@@ -588,6 +765,12 @@ class EvolveMode:
         self._show_runs()
         self._show_progress(run, ended)
         self._show_best()
+        self._offer_population(at_once=True)
+        if self.best_run is run and self.shown_best is not None:
+            top = best_of(self.shown_best, "run")
+            self._end_arena_check()
+            self._spawn(self._check_in_arena(self._arena_check, arena_key(top), top["genes"],
+                                             layout_of(top)))
         self._schedule()
 
     def _give_back(self, run: Run, ended: str) -> None:
@@ -733,51 +916,174 @@ class EvolveMode:
         self._best_shown = True
         report = self.best
         if report is None:
-            self.facts.innerHTML = ('<p class="hint">Press Run and the best beest of each '
-                                    'generation appears here.</p>')
+            for kind, text in (("latest", "Press Run and the best beest of the latest generation "
+                                          "appears here."),
+                               ("run", "The best beest of the whole run so far appears here.")):
+                self.columns[kind].querySelector(".ev-facts").innerHTML = (
+                    f'<p class="hint">{text}</p>')
             return
         run = self.best_run
         self.shown_best = report
         self.template.enable()
-        self._mirror("best-score", repr(report["best_score"]))
-        self._mirror("winner-turns", str(not report["best_jams"]).lower())
-        self._mirror("winner-fits", str(report["best_fits"]).lower())
-        self.picture.show(report["best_genes"], report["best_layout"]["phases"],
-                          run.settings.margin, report["best_jams"])
-        turns, fits = not report["best_jams"], report["best_fits"]
-        turns_text = f"{TICK} Turns fully" if turns else f"{CROSS} Jams: it cannot turn fully"
-        fits_text = (f"{TICK} Fits on lolly sticks" if fits
-                     else f"{CROSS} {misfits(report['best_genes'])}")
-        numbers = "".join(f"<dt>{html.escape(label(name))}</dt><dd>{reading(name, value)}</dd>"
-                          for name, value in report["best_values"].items())
-        lengths = " ".join(f"<span><b>{name}</b> {length:.1f}</span>"
-                           for name, length in zip(LENGTH_NAMES, report["best_genes"]))
-        layout = report["best_layout"]
-        phases = ", ".join(f"{p:.0f}°" for p in layout["phases"])
-        self.facts.innerHTML = f"""
-<p class="which">{html.escape(run.series.label)}, generation {report["generation"]}:
-  score <b>{short(report["best_score"])}</b></p>
-<ul class="checks">
-  <li class="{'ok' if turns else 'bad'}" data-check="turns">{turns_text}</li>
-  <li class="{'ok' if fits else 'bad'}" data-check="fits">{fits_text}</li>
-</ul>
-<dl class="numbers">{numbers}</dl>
-<p class="lengths">Lengths in mm: {lengths}</p>
-<p class="layout">{layout["pairs"]} pair{'' if layout["pairs"] == 1 else 's'} of legs, cranks at
-  {phases}</p>
-"""
+        latest, top = best_of(report, "latest"), best_of(report, "run")
+        since = report["run_best_generation"]
+        same = (latest["genes"], latest["layout"]) == (top["genes"], top["layout"])
+        for prefix, beest in (("", latest), ("run-", top)):
+            self._mirror(f"{prefix}best-score", repr(beest["score"]))
+            self._mirror(f"{prefix}winner-turns", str(not beest["jams"]).lower())
+            self._mirror(f"{prefix}winner-fits", str(beest["fits"]).lower())
+        self._mirror("run-best-generation", str(since))
+        self._mirror("same-best", str(same).lower())
+        self._run_column = "latest" if same else "run"
+        name = html.escape(run.series.label)
+        shown = [("latest", latest, f"{name}, generation {report['generation']}")]
+        if not same:
+            shown.append(("run", top, f"{name}, the best since generation {since}"))
+        for kind, beest, which in shown:
+            self.pictures[kind].show(beest["genes"], beest["layout"]["phases"],
+                                     run.settings.margin, beest["jams"])
+            self.columns[kind].querySelector(".ev-facts").innerHTML = facts_html(beest, which)
+        column = self.columns["run"]
+        column.querySelector(".best-shown").hidden = same
+        note = column.querySelector(".ev-same")
+        note.hidden = not same
+        note.textContent = same_note(run.settings.fitness.normalisation == "generation", since)
+        if self.animator.angles:
+            self.animator.redraw()
+        else:
+            self.animator.load(CRANK_TURN, DRAW_ANGLES, loops=True)
+        self._offer_population()
+        self._show_arena()
         if self.on_best is not None:
             # The panel is already shown; an error in the receiver goes no further than the console.
             try:
-                self.on_best(report["best_genes"], best_layout(report))
+                self.on_best(top["genes"], layout_of(top))
             except Exception:
                 window.console.error(
                     f"Handing on the best beest failed.\n{traceback.format_exc()}")
 
     def _leg_template(self) -> list[str]:
-        """The template of the best beest on show, for its number of leg pairs."""
+        """The template of the run's best beest on show, for its number of leg pairs."""
+        top = best_of(self.shown_best, "run")
+        return leg_template_svg(top["genes"], layout_of(top))
+
+    def _draw_beests(self, index: int | None) -> bool:
+        """Draws both best beests and the generation's grid with the crank at this step of its
+        turn."""
+        theta = 0.0 if index is None else CRANK_TURN[index]
+        drew = [picture.draw(theta) for picture in self.pictures.values()]
+        drew.append(self.population.draw(theta))
+        return any(drew)
+
+    def _end_arena_check(self) -> None:
+        """Ends any arena check under way and clears what it showed."""
+        self._arena_check += 1
+        self._arena = None
+        for name in ("run-winner-walks", "run-arena-distance"):
+            self._forget(name)
+        for item in self.root.querySelectorAll('[data-check="arena"]'):
+            item.remove()
+
+    async def _check_in_arena(self, check: int, key: tuple, genes: list[float],
+                              layout: Layout) -> None:
+        """Walks the run's best on flat ground for ARENA_TURNS, a little each frame, and shows
+        whether it stays up; it gives up once `check` is no longer the latest."""
+        if check != self._arena_check:
+            return
+        self._set_arena(key, "checking", ARENA_CHECKING)
+        try:
+            physics = await engine()
+        except Exception as error:
+            window.console.warn(f"The arena's physics engine did not load: {error!r}")
+            if check == self._arena_check:
+                self._set_arena(key, "error", ARENA_FAILED)
+            return
+        try:
+            arena = physics.Arena(genes, layout)
+            goal = round(physics.ARENA_TURNS * physics.STEPS_PER_TURN)
+            while arena.steps < goal and not arena.tipped:
+                if check != self._arena_check:
+                    return
+                deadline = time.perf_counter() + ARENA_BUDGET_S
+                while arena.steps < goal and not arena.tipped and time.perf_counter() < deadline:
+                    arena.step(min(ARENA_STEPS, goal - arena.steps))
+                await next_frame()
+        except ValueError as error:
+            if check == self._arena_check:
+                self._set_arena(key, "false", f"{CROSS} It cannot walk in the arena: "
+                                              f"{sentence(error)}")
+            return
+        except Exception:
+            window.console.error(f"The arena check failed.\n{traceback.format_exc()}")
+            if check == self._arena_check:
+                self._set_arena(key, "error", ARENA_FAULT)
+            return
+        if check != self._arena_check:
+            return
+        result = arena.result()
+        if result.tipped:
+            self._set_arena(key, "false",
+                            f"{CROSS} Falls over in the arena {physics.fell(result.tipped_at)}")
+            return
+        self._mirror("run-arena-distance", str(round(result.distance, 2)))
+        per_turn = f"{minus(f'{result.distance:.0f}')} mm a turn"
+        if result.distance > 0:
+            self._set_arena(key, "true",
+                            f"{TICK} Walks in the arena without falling over: {per_turn}")
+        else:
+            self._set_arena(key, "false", f"{CROSS} Stays up in the arena but does not walk "
+                                          f"forwards: {per_turn}")
+
+    def _set_arena(self, key: tuple, state: str, text: str) -> None:
+        self._arena = key, state, text
+        self._mirror("run-winner-walks", state)
+        self._show_arena()
+
+    def _show_arena(self) -> None:
+        """Puts the arena check under the run's best beest's other checks, if it is on show."""
         report = self.shown_best
-        return leg_template_svg(report["best_genes"], best_layout(report))
+        if self._arena is None or report is None:
+            return
+        key, state, text = self._arena
+        if arena_key(best_of(report, "run")) != key:
+            return
+        # querySelector finds nothing as jsnull.
+        checks = self.columns[self._run_column].querySelector(".checks")
+        if checks is jsnull:
+            return
+        item = checks.querySelector('[data-check="arena"]')
+        if item is jsnull:
+            item = document.createElement("li")
+            item.dataset.check = "arena"
+            checks.appendChild(item)
+        item.className = {"true": "ok", "false": "bad"}.get(state, "")
+        item.textContent = text
+
+    def _offer_population(self, at_once: bool = False) -> None:
+        """Gives the grid the generation whose bests are on show; during a run, only so often."""
+        report, run = self.shown_best, self.best_run
+        now = time.monotonic()
+        if report is None or not at_once and now - self._population_offered < POPULATION_EVERY_S:
+            return
+        self._population_offered = now
+        # The key names the generation and says what the grid's hint needs about its run.
+        key = (id(run), report["generation"], run.series.label, run.settings.preset)
+        self.population.offer(key, report["population"], run.settings.margin)
+
+    def _show_population(self) -> None:
+        """A newly traced generation has gone on show in the grid."""
+        grid = self.population
+        _, generation, name, preset = grid.key
+        self._mirror("population", str(len(grid.shown)))
+        self._mirror("population-generation", str(generation))
+        tried = "parent and child" if preset == "hill" else "every beest"
+        self.population_hint.textContent = (
+            f"{name}, generation {generation}: {tried}, best first, with each one's score. A "
+            f"grey beest jams, so it stays still. Play turns them with the best beests.")
+        self.animator.redraw()
+
+    def _pictures_resized(self) -> None:
+        self.animator.draw_now()
 
     def _mirror(self, name: str, value: str) -> None:
         if self._shown.get(name) != value:
@@ -808,6 +1114,12 @@ class EvolveMode:
                 self._best_drawn = now
             else:
                 self._schedule()
+        if self.population.busy:
+            # The grid traces a few beests each frame, so frames stay short.
+            if self.population.work():
+                self._show_population()
+            if self.population.busy:
+                self._schedule()
         self.readout.textContent = "\n".join(self.graph.readout())
 
     def _graph_resized(self) -> None:
@@ -821,6 +1133,24 @@ class EvolveMode:
         leaving = event.type == "pointerleave"
         self.graph.hover = None if leaving else (float(event.offsetX), float(event.offsetY))
         self._schedule()
+
+    def _check_design(self, event=None) -> None:
+        """Warns, while the run is to start from the Leg tab's design, when that leg jams."""
+        if self.root.hidden:
+            return
+        reason = None
+        if self.form.start == "design":
+            # As the run starts from it.
+            lengths = dict(zip(LENGTH_NAMES, ga.clamp(self.form.design_genes())))
+            trace = trace_leg(lengths, ANGLES, self.form.margin())
+            reason = trace.jam_reason if trace.jammed else None
+            self._mirror("design-jams", str(trace.jammed).lower())
+        else:
+            self._forget("design-jams")
+        self.design_warning.hidden = reason is None
+        self.design_warning.textContent = (
+            "" if reason is None else f"The leg in the Leg tab jams: {reason}. Its copies may "
+                                      f"jam too, and a beest that jams scores 0.")
 
     def _code_reset(self) -> None:
         # A message about the student's own code goes with it; one about the settings stays.
@@ -862,22 +1192,44 @@ STAGE_HTML = """
   <p class="ev-readout"></p>
 </div>
 <div class="panel best-panel">
-  <h3>Best beest</h3>
-  <div class="best-body">
-    <div class="best-picture">
-      <canvas class="ev-beest" role="img" aria-label="The best beest so far, walking left"></canvas>
-      <div class="playback">
-        <button type="button" class="play" disabled>Pause</button>
-        <label class="speed-label">Speed
-          <input type="range" class="speed" min="1" max="60" step="1" value="15" disabled>
-        </label>
-        <output class="speed-shown">15 turns a minute</output>
-      </div>
-    </div>
-    <div class="best-facts">
-      <div class="ev-facts"></div>
-      <div class="template ev-template"></div>
+  <div class="panel-head">
+    <h3>Best beests</h3>
+    <div class="playback">
+      <button type="button" class="play" disabled>Play</button>
+      <label class="speed-label">Speed
+        <input type="range" class="speed" min="1" max="60" step="1" value="15" disabled>
+      </label>
+      <output class="speed-shown">15 turns a minute</output>
     </div>
   </div>
+  <div class="best-pair">
+    <div class="best-beest" data-best="latest">
+      <h4>Best of the latest generation</h4>
+      <div class="best-shown">
+        <canvas class="ev-beest" role="img"
+          aria-label="The best beest of the latest generation, walking left"></canvas>
+        <div class="ev-facts"></div>
+      </div>
+    </div>
+    <div class="best-beest" data-best="run">
+      <h4>Best of the whole run so far</h4>
+      <p class="hint ev-same" hidden></p>
+      <div class="best-shown">
+        <canvas class="ev-beest" role="img"
+          aria-label="The best beest of the whole run so far, walking left"></canvas>
+        <div class="ev-facts"></div>
+      </div>
+    </div>
+  </div>
+  <p class="hint">The leg template is for the best beest of the whole run so far, and so is
+    "The best from Evolve" in the Arena tab.</p>
+  <div class="template ev-template"></div>
+</div>
+<div class="panel population-panel">
+  <h3>The whole generation</h3>
+  <p class="hint ev-population-hint">Press Run and every beest of each generation appears here,
+    best first.</p>
+  <canvas class="ev-population" role="img" hidden
+    aria-label="Every beest of the generation, best first, each with its score"></canvas>
 </div>
 """

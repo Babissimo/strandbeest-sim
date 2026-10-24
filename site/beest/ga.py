@@ -30,8 +30,18 @@ BUDGET = 1500
 PHASE_SIZE = 15.0
 PRESETS = ("ga", "hill", "random")
 CROSSOVERS = ("uniform", "blend", "triangles", "none")
+# How a run makes its first beests: "random" draws each length within RANDOM_SPREAD of Jansen's;
+# "turning" draws again until the beest turns fully; "jansen" and "design" take Jansen's leg or
+# RunSettings.start_genes, then mutated copies of it.
+STARTS = ("random", "turning", "jansen", "design")
+LEG_STARTS = frozenset({"jansen", "design"})
+# A beest that turns fully is drawn at most this many times before the run gives up.
+START_TRIES = 500
 # Under "triangles" crossover each triangle's three sides come from the same parent.
 TRIANGLES = ("bde", "ghi")
+# A report's plain form gives the generation's lengths to this many decimals (0.01 mm), finer than
+# any drawing of them shows, so it stays small.
+POPULATION_DECIMALS = 2
 
 
 def random_genes() -> list[float]:
@@ -128,7 +138,12 @@ class RunSettings:
     so far are scored again beside each generation's newcomers.
     budget: when set, the run makes as many fitness evaluations as this allows, whatever
     `generations` says, and never more; the last generation is cut short to fit.
-    mask: the lengths that may change. The others hold Jansen's value in every beest.
+    mask: the lengths that may change. The others hold the starting leg's value (Jansen's, or
+    start_genes for the "design" start) in every beest.
+    start: how the first beests are made (STARTS). Under "jansen" and "design" the first is the
+    leg itself and the rest are copies put through `mutate` at `rate` and `size`. Random search
+    makes every generation's newcomers the same way. Checking whether a beest turns fully is not
+    an evaluation. start_genes: the 13 lengths of the "design" start.
     tol: how close to its lowest point a foot counts as down, in mm. margin: see leg_from.
     """
     preset: str = "ga"
@@ -145,11 +160,23 @@ class RunSettings:
     fitness: FitnessSettings = field(default_factory=FitnessSettings)
     tol: float = DOWN_TOLERANCE_MM
     margin: float = JAM_MARGIN_MM
+    start: str = "random"
+    start_genes: tuple[float, ...] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "mask", frozenset(self.mask))
         if self.preset not in PRESETS:
             raise ValueError(f"preset must be one of {', '.join(PRESETS)}, not {self.preset!r}")
+        if self.start not in STARTS:
+            raise ValueError(f"start must be one of {', '.join(STARTS)}, not {self.start!r}")
+        if self.start_genes is not None:
+            numbers = [_number(x) for x in self.start_genes]
+            if len(numbers) != len(LENGTH_NAMES) or None in numbers:
+                raise ValueError(f"start_genes must be {len(LENGTH_NAMES)} ordinary numbers, "
+                                 f"a to m, not {self.start_genes!r}")
+            object.__setattr__(self, "start_genes", tuple(numbers))
+        elif self.start == "design":
+            raise ValueError("the design start needs start_genes, the design's 13 lengths")
         if self.crossover not in CROSSOVERS:
             raise ValueError(f"crossover must be one of {', '.join(CROSSOVERS)}, "
                              f"not {self.crossover!r}")
@@ -171,14 +198,28 @@ class RunSettings:
 
 
 @dataclass(frozen=True)
+class Member:
+    """One beest a generation tried: its genes, layout, score and whether it jams."""
+    genes: list[float]
+    layout: Layout
+    score: float
+    jams: bool
+
+
+@dataclass(frozen=True)
 class Report:
     """One generation's results.
 
     The best beest is the one the search keeps: the GA's best in this generation, hill
     climbing's parent, or random search's best so far. `best_values` are its raw ingredients;
     `best_jams` and `best_fits` are its winner checks. `mean_score` covers the beests this
-    generation tried (hill climbing's parent and child). `evaluations` counts every fitness call
-    so far.
+    generation tried (hill climbing's parent and child), which `population` lists in the order
+    they were scored. `evaluations` counts every fitness call so far.
+
+    The `run_best_` fields describe the best beest of the whole run so far in the same way:
+    the highest-scoring of the generations' best beests, a tie going to the later one.
+    `run_best_generation` is the generation it first led. Under per-generation normalisation
+    scores compare only within one generation, so the latest best is the run's best.
     """
     generation: int
     evaluations: int
@@ -189,11 +230,27 @@ class Report:
     best_values: dict[str, float]
     best_jams: bool
     best_fits: bool
+    run_best_generation: int
+    run_best_score: float
+    run_best_genes: list[float]
+    run_best_layout: Layout
+    run_best_values: dict[str, float]
+    run_best_jams: bool
+    run_best_fits: bool
+    population: list[Member]
 
     def as_dict(self) -> dict:
-        """The report as plain dicts, lists and numbers, ready to send from a web worker."""
-        plain = asdict(self)
+        """The report as plain dicts, lists and numbers, ready to send from a web worker.
+
+        Each member of the population is `{"genes", "phases", "score", "jams"}`, its lengths
+        rounded to POPULATION_DECIMALS.
+        """
+        plain = asdict(replace(self, population=[]))
         plain["best_layout"]["phases"] = list(self.best_layout.phases)
+        plain["run_best_layout"]["phases"] = list(self.run_best_layout.phases)
+        plain["population"] = [{"genes": [round(x, POPULATION_DECIMALS) for x in m.genes],
+                                "phases": list(m.layout.phases), "score": m.score,
+                                "jams": m.jams} for m in self.population]
         return plain
 
 
@@ -216,6 +273,10 @@ class StudentCodeError(Exception):
 
     def __str__(self) -> str:
         return self.message
+
+
+class StartError(ValueError):
+    """The run could not make a beest the way its start asks, such as one that turns fully."""
 
 
 def _editor_line(fn: object) -> int | None:
@@ -296,6 +357,9 @@ class _Search:
         self.mutate_fn = mutate_fn
         # Jansen's reference beest turns fully whatever the run's jam margin.
         self.jansen = leg_from(jansen_lengths(), tol=settings.tol)
+        # The leg the run starts from, whose lengths outside the mask every beest keeps.
+        self.base = (clamp(list(settings.start_genes)) if settings.start == "design"
+                     else list(self.jansen.genes))
         self.fixed = [name not in settings.mask for name in LENGTH_NAMES]
         # Under per-generation normalisation the beest a search keeps is scored again each generation.
         self.together = settings.fitness.normalisation == "generation"
@@ -303,6 +367,10 @@ class _Search:
         self.evaluations = 0
         # The beests built for the last generation, by genes and layout; leg_from is deterministic.
         self.built: dict[tuple[tuple[float, ...], Layout], _Beest] = {}
+        # Newcomers already built to check that they turn fully, until the next build.
+        self.checked: dict[tuple[tuple[float, ...], Layout], _Beest] = {}
+        # The run's best beest so far, its score and the generation it first led.
+        self.run_best: tuple[_Beest, float, int] | None = None
 
     def more(self, cost: int = 1) -> bool:
         """Whether a further generation costing at least `cost` evaluations fits in the run."""
@@ -316,10 +384,34 @@ class _Search:
             return wanted
         return min(wanted, self.settings.budget - self.evaluations)
 
+    def kept_outside_mask(self, genes: list[float]) -> list[float]:
+        return [b if fixed else x for x, b, fixed in zip(genes, self.base, self.fixed)]
+
+    def first(self, wanted: int) -> list[Plan]:
+        """The first generation: the starting leg itself, when the start has one, then newcomers."""
+        own = self.settings.start in LEG_STARTS and wanted > 0
+        plans = [(list(self.base), Layout())] if own else []
+        return plans + [self.newcomer() for _ in range(wanted - len(plans))]
+
     def newcomer(self) -> Plan:
-        """Random lengths where the mask allows, Jansen's elsewhere, on the standard layout."""
-        genes = [j if fixed else x for x, j, fixed in zip(random_genes(), self.jansen.genes, self.fixed)]
-        return genes, Layout()
+        """A new beest on the standard layout, made the way the run starts (RunSettings.start).
+
+        Raises StartError when START_TRIES random beests in a row jam under the "turning" start.
+        """
+        s = self.settings
+        if s.start in LEG_STARTS:
+            return self.kept_outside_mask(mutate(list(self.base), s.rate, s.size)), Layout()
+        for _ in range(START_TRIES):
+            genes = self.kept_outside_mask(random_genes())
+            if s.start == "random":
+                return genes, Layout()
+            key = (tuple(genes), Layout())
+            beest = _Beest(key[0], key[1], leg_from(genes, key[1], s.tol, margin=s.margin))
+            if not beest.leg.jams:
+                self.checked[key] = beest
+                return genes, key[1]
+        raise StartError(f"No random beest that turns fully came up in {START_TRIES} tries. Let "
+                         f"more lengths change, or make the jam margin smaller.")
 
     def mutant(self, genes: list[float], layout: Layout, parent: tuple[float, ...]) -> Plan:
         """New `genes` put through mutate, with the masked lengths taken back from `parent`."""
@@ -334,12 +426,13 @@ class _Search:
         for genes, layout in plans:
             key = (tuple(genes), layout)
             if key not in built:
-                beest = self.built.get(key)
+                beest = self.built.get(key) or self.checked.get(key)
                 if beest is None:
                     leg = leg_from(genes, layout, self.settings.tol, margin=self.settings.margin)
                     beest = _Beest(key[0], layout, leg)
                 built[key] = beest
         self.built = built
+        self.checked = {}
         return [built[tuple(genes), layout] for genes, layout in plans]
 
     def score(self, beests: list[_Beest]) -> list[float]:
@@ -354,20 +447,38 @@ class _Search:
         self.evaluations += len(legs)
         return scores
 
-    def report(self, beest: _Beest, score: float, scores: list[float]) -> Report:
+    def keep_run_best(self, beest: _Beest, score: float) -> tuple[_Beest, float, int]:
+        """The run's best once this generation's best, scoring `score`, is counted."""
+        held = self.run_best
+        if held is None or self.together or score >= held[1]:
+            same = held is not None and (held[0].genes, held[0].layout) == (beest.genes,
+                                                                            beest.layout)
+            self.run_best = beest, score, held[2] if same else self.generation
+        return self.run_best
+
+    def report(self, beest: _Beest, score: float, tried: list[tuple[_Beest, float]]) -> Report:
+        """The generation's report: `beest` is the one the search keeps and `tried` the beests
+        this generation tried, with their scores."""
+        top, top_score, found = self.keep_run_best(beest, score)
+        population = [Member(list(b.genes), b.layout, s, b.leg.jams) for b, s in tried]
         report = Report(generation=self.generation, evaluations=self.evaluations, best_score=score,
-                        mean_score=sum(scores) / len(scores), best_genes=list(beest.genes),
+                        mean_score=sum(m.score for m in population) / len(population),
+                        best_genes=list(beest.genes),
                         best_layout=beest.layout, best_values=ingredient_values(beest.leg),
-                        best_jams=beest.leg.jams, best_fits=beest.leg.fits)
+                        best_jams=beest.leg.jams, best_fits=beest.leg.fits,
+                        run_best_generation=found, run_best_score=top_score,
+                        run_best_genes=list(top.genes), run_best_layout=top.layout,
+                        run_best_values=ingredient_values(top.leg), run_best_jams=top.leg.jams,
+                        run_best_fits=top.leg.fits, population=population)
         self.generation += 1
         return report
 
     def ga(self) -> Iterator[Report]:
-        population = self.build([self.newcomer() for _ in range(self.room(self.settings.pop))])
+        population = self.build(self.first(self.room(self.settings.pop)))
         while True:
             scores = self.score(population)
             leader, top = best(population, scores)
-            yield self.report(leader, top, scores)
+            yield self.report(leader, top, list(zip(population, scores)))
             if not self.more():
                 return
             population = self.build(self.next_generation(population, scores))
@@ -389,16 +500,16 @@ class _Search:
         return plans
 
     def hill(self) -> Iterator[Report]:
-        [parent] = self.build([self.newcomer()])
+        [parent] = self.build(self.first(1))
         [parent_score] = self.score([parent])
-        yield self.report(parent, parent_score, [parent_score])
+        yield self.report(parent, parent_score, [(parent, parent_score)])
         while self.more(2 if self.together else 1):
             [child] = self.build([self.mutant(list(parent.genes), parent.layout, parent.genes)])
             if self.together:
                 parent_score, child_score = self.score([parent, child])
             else:
                 [child_score] = self.score([child])
-            compared = [parent_score, child_score]
+            compared = [(parent, parent_score), (child, child_score)]
             # Ties must go to the child, or a climber that starts jammed never moves.
             if child_score >= parent_score:
                 parent, parent_score = child, child_score
@@ -409,14 +520,17 @@ class _Search:
         while True:
             kept = [champion] if self.together and champion is not None else []
             wanted = self.room(self.settings.pop + len(kept)) - len(kept)
-            entrants = kept + self.build([self.newcomer() for _ in range(wanted)])
+            newcomers = (self.first(wanted) if self.generation == 0
+                         else [self.newcomer() for _ in range(wanted)])
+            entrants = kept + self.build(newcomers)
             scores = self.score(entrants)
             if kept:
                 record = scores[0]
             leader, top = best(entrants, scores)
             if top > record:
                 champion, record = leader, top
-            yield self.report(champion, record, scores[len(kept):])
+            yield self.report(champion, record,
+                              list(zip(entrants[len(kept):], scores[len(kept):])))
             if not self.more(2 if self.together else 1):
                 return
 

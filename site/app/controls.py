@@ -159,11 +159,13 @@ def swings(trace: FourBarTrace | LegTrace) -> str:
 class Animator:
     """Turns the crank through a traced turn, one animation frame at a time.
 
-    A full turn goes round and round. A linkage that jams swings from the start to its last
-    position before the jam and back. `draw(index)` draws the linkage at that traced angle (None
-    when nothing was traced) and says whether it could. The root element shows `data-angle`, the
-    angle drawn last, and `data-drawn-to`, the furthest angle drawn since the trace was loaded,
-    both in whole degrees. Frames start with the first `load`.
+    It starts paused with the crank at 0°, and Play turns it. A full turn goes round and round. A
+    linkage that jams swings from the start to its last position before the jam and back.
+    `draw(index)` draws the linkage at that traced angle (None when nothing was traced) and says
+    whether it could; a new trace or `redraw` draws it again while paused, and after a drawing
+    failure. The root element shows
+    `data-playing`, `data-angle`, the angle drawn last, and `data-drawn-to`, the furthest angle
+    drawn since the trace was loaded, both in whole degrees. Frames start with the first `load`.
     """
 
     def __init__(self, root, draw: Callable[[int | None], bool]):
@@ -182,11 +184,12 @@ class Animator:
         self.button = root.querySelector(".play")
         self.speed = root.querySelector(".speed")
         self.speed_shown = root.querySelector(".speed-shown")
-        self.playing = True
+        self.playing = False
+        self.button.textContent = "Play"
         self._proxies = [listen(self.button, "click", self._toggle),
                          listen(self.speed, "input", self._show_speed)]
         self._show_speed(None)
-        self._mirror("playing", "true")
+        self._mirror("playing", "false")
         self._frame_proxy = create_proxy(self._frame)
         self._scheduled = False
 
@@ -209,8 +212,9 @@ class Animator:
         self.redraw()
 
     def redraw(self) -> None:
-        """Draws again on the next frame, playing or not."""
+        """Draws again on the next frame, playing or not, even after a drawing failure."""
         self._stale = True
+        self._failed = False
         self._wake()
 
     def draw_now(self) -> None:
@@ -264,7 +268,8 @@ class Animator:
         try:
             drew = self.draw(index)
         except Exception:
-            # Logged once; drawing waits for the next trace rather than failing every frame.
+            # Logged once; drawing waits for the next trace or redraw rather than failing every
+            # frame.
             self._failed = True
             raise
         if not drew:

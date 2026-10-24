@@ -86,7 +86,7 @@ def run_request(request: str, report: Callable[[str], object]) -> str:
     `report` gets each generation's report as JSON; when it returns False the run stops. The
     answer is `{"status": "done" | "stopped", "report": <last report>}` or
     `{"status": "error", "error": {...}}`, the error as failure() gives it or, for settings the
-    engine refuses, of kind "settings"; no exception escapes.
+    engine refuses or a start it cannot make, of kind "settings"; no exception escapes.
     """
     stopped = False
 
@@ -103,7 +103,10 @@ def run_request(request: str, report: Callable[[str], object]) -> str:
             return json.dumps({"status": "error", "error": _told("settings", str(exc))})
         source = asked.get("source")
         fitness_fn, mutate_fn = (None, None) if source is None else student_functions(source)
-        last = ga.run(settings, fitness_fn, mutate_fn, on_generation)
+        try:
+            last = ga.run(settings, fitness_fn, mutate_fn, on_generation)
+        except ga.StartError as exc:
+            return json.dumps({"status": "error", "error": _told("settings", str(exc))})
     # exit() in the editor raises SystemExit, which must come back as a message like the rest.
     except BaseException as exc:
         return json.dumps({"status": "error", "error": failure(exc)})

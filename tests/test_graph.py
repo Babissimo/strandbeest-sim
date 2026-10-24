@@ -189,7 +189,7 @@ def test_ingredients_follow_the_engine(monkeypatch):
     assert_finite(numbers, paths)
     assert len(g._plots) == len(INGREDIENTS) + 1
     assert graph.label("grip") == "Grip"
-    assert graph.label("upright") == "Upright"
+    assert graph.label("upright") == "Upright (quick check)"
     assert graph.label("step_height") == "Step height (mm)"
     assert graph.reading("upright", 1.0) == "1.00"
     assert graph.reading("stride", 57.42) == "57.4 mm"

@@ -212,5 +212,5 @@ def test_pymunk_must_match_pypi(
 
 
 def test_the_arena_loads_the_vendored_wheel() -> None:
-    arena_mode = Path(__file__).resolve().parents[1] / "site" / "app" / "arena_mode.py"
-    assert f'"./vendor/pyodide/{vendor.PYMUNK_WHEEL}"' in arena_mode.read_text()
+    physics = Path(__file__).resolve().parents[1] / "site" / "app" / "physics.py"
+    assert f'"./vendor/pyodide/{vendor.PYMUNK_WHEEL}"' in physics.read_text()
