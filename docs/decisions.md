@@ -56,13 +56,13 @@ unit, so its longest stick (h) is 78.8 mm, leaving 32% headroom under the 104 mm
 "scaling" in brackets where the slides' word helps) and "scale" means mm per Jansen unit.
 
 ### Q9 Code route: provisional
-One editor holding `fitness` and `mutate`, starting from the slide code, with Python highlighting
-and line numbers (PyScript's bundled CodeMirror if it can be driven directly, else CodeMirror from
-npm). The GA runs in a PyScript worker. Run sends the editor's text to the worker; Stop terminates the
-worker and starts a fresh one, so an endless loop is always recoverable. An exception halts the run
-and shows the traceback with line numbers that match the editor. The text is kept in browser storage,
-with "Reset to slide code". If the worker needs cross-origin isolation, the dev server and
-`site/_headers` send `Cross-Origin-Opener-Policy: same-origin` and
+One editor holding `fitness` and `mutate`, opening on the starting code (S5), with Python
+highlighting and line numbers (PyScript's bundled CodeMirror if it can be driven directly, else
+CodeMirror from npm). The GA runs in a PyScript worker. Run sends the editor's text to the worker;
+Stop terminates the worker and starts a fresh one, so an endless loop is always recoverable. An
+exception halts the run and shows the traceback with line numbers that match the editor. The text
+is kept in browser storage, with "Reset to starting code". If the worker needs cross-origin
+isolation, the dev server and `site/_headers` send `Cross-Origin-Opener-Policy: same-origin` and
 `Cross-Origin-Embedder-Policy: require-corp`.
 
 ### Q10 Self-hosted runtime: provisional
@@ -327,10 +327,10 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   view while the editor still holds the code that ran, and the traceback (quoting the editor's
   lines) in a closed section. Generations already scored stay on the graph, labelled "(ended by an
   error in your code)".
-- **B53 Storage.** The editor's text is saved in browser storage after each edit; the slide code
-  itself is never stored, so a changed `SOURCE` reaches students after a reload. If storage is
-  blocked or full, the editor starts from the slide code and says the browser is not keeping it.
-- **B54 Reset to slide code** asks first only when the text differs from the slide code.
+- **B53 Storage.** The editor's text is saved in browser storage after each edit; the starting
+  code itself is never stored, so a changed `SOURCE` reaches students after a reload. If storage is
+  blocked or full, the editor opens on the starting code and says the browser is not keeping it.
+- **B54 Reset to starting code** asks first only when the text differs from the starting code.
 - **B55 Help.** A closed "What your code can use" section lists `leg`'s attributes with units,
   `leg.normalised` (before flipping), `leg.genes` and `mutate`'s arguments.
 

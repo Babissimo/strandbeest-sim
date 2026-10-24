@@ -126,9 +126,9 @@ def test_syntax_error_names_line(code: Page) -> None:
     set_code(code, SOURCE.replace("def fitness(leg):", "def fitness(leg) :"))
     expect(code.locator(".ev-editor .error-line")).to_have_count(0)
     expect(code.locator(".ev-code-error")).to_be_visible()
-    # Back to the slide code, the message goes, and the code runs.
+    # Back to the starting code, the message goes, and the code runs.
     code.once("dialog", lambda dialog: dialog.accept())
-    code.get_by_role("button", name="Reset to slide code").click()
+    code.get_by_role("button", name="Reset to starting code").click()
     assert code_text(code) == SOURCE
     expect(code.locator(".ev-code-error")).to_be_hidden()
     expect(mode(code)).not_to_have_attribute("data-error", re.compile(".*"))
@@ -238,7 +238,7 @@ def test_code_survives_reload(code: Page) -> None:
     code.locator("#ev-pop").fill("")
     run(code)
     expect(code.locator(".ev-error")).to_have_text("Population needs a number.")
-    reset = code.get_by_role("button", name="Reset to slide code")
+    reset = code.get_by_role("button", name="Reset to starting code")
     questions = []
 
     def answer(dialog, accept: bool) -> None:
@@ -251,9 +251,10 @@ def test_code_survives_reload(code: Page) -> None:
     code.once("dialog", lambda dialog: answer(dialog, True))
     reset.click()
     assert code_text(code) == SOURCE
-    assert len(questions) == 2
+    asked = "Put the starting code back? Your own code in the editor will be lost."
+    assert questions == [asked, asked]
     expect(code.locator(".ev-error")).to_have_text("Population needs a number.")
-    # The slide code itself is not kept, so new slide code on the site shows after a reload.
+    # The starting code itself is not kept, so new starting code on the site shows after a reload.
     assert code.evaluate("localStorage.getItem('strandbeest-sim.code')") is None
     code.reload()
     expect(mode(code)).to_have_attribute("data-status", "ready", timeout=START_TIMEOUT_MS)

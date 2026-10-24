@@ -319,8 +319,8 @@ glue); modify `site/app/evolve_mode.py`, `site/app/ga_worker.py`, `site/index.ht
 
 Behaviour per decisions Q9: one editor starting from `student_default.SOURCE`; Run uses the editor's
 `fitness` and `mutate`; errors halt the run and show the message with editor line numbers; Stop
-terminates the worker and starts a fresh one; the text persists in browser storage; "Reset to slide
-code" restores `SOURCE`.
+terminates the worker and starts a fresh one; the text persists in browser storage; "Reset to
+starting code" restores `SOURCE`.
 
 - [ ] **Step 1:** Write `test_syntax_error_names_line`, `test_exception_shows_traceback`,
       `test_fitness_returning_none_or_nan` (plain message, run halted), `test_endless_loop_stop`

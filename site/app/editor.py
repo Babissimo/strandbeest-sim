@@ -1,4 +1,4 @@
-"""The code route's panel: the editor (app/editor.js), Reset to slide code, and the message and
+"""The code route's panel: the editor (app/editor.js), Reset to starting code, and the message and
 traceback when the code stops a run.
 
 The browser keeps the editor's text in its storage (app.storage), so a reload brings it back.
@@ -21,7 +21,7 @@ from beest.student_default import SOURCE
 
 # Where the browser keeps the editor's text.
 CODE_KEY = "strandbeest-sim.code"
-RESET_QUESTION = "Put the slide code back? Your own code in the editor will be lost."
+RESET_QUESTION = "Put the starting code back? Your own code in the editor will be lost."
 
 # What `fitness(leg)` can read, as the help lists it.
 LEG_HELP = (
@@ -48,7 +48,7 @@ PANEL_HTML = f"""
 <div class="panel code-panel" hidden>
   <div class="panel-head">
     <h3>Your code</h3>
-    <button type="button" class="ev-reset-code">Reset to slide code</button>
+    <button type="button" class="ev-reset-code">Reset to starting code</button>
   </div>
   <p class="hint">Run scores every beest with your <code>fitness(leg)</code>, and the GA and hill
     climbing make each child with your <code>mutate(genes, rate)</code>. Tab indents a line; press
@@ -77,7 +77,7 @@ PANEL_HTML = f"""
 class CodePanel:
     """The editor and its buttons, at the top of Evolve's stage, shown on the code route.
 
-    `on_reset` is called after Reset to slide code puts the slide code back.
+    `on_reset` is called after Reset to starting code puts the starting code back.
     """
 
     def __init__(self, stage, on_reset: Callable[[], None]):
@@ -130,7 +130,7 @@ class CodePanel:
                                           dict_converter=window.Object.fromEntries))
 
     def _changed(self) -> None:
-        # The slide code itself is not kept, so the page's own SOURCE shows after a reload, and
+        # The starting code itself is not kept, so the page's own SOURCE shows after a reload, and
         # nothing is lost then while the editor holds it.
         text = self.text
         self.not_kept.hidden = keep(CODE_KEY, None if text == SOURCE else text) or text == SOURCE
