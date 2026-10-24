@@ -71,8 +71,8 @@ Al's answer: Cloudflare, as for his Ratchet site, at strandbeests.babissimo.net.
 static files with no build step and a `_headers` file; `deploy/` holds the Worker that serves it,
 and `.github/workflows/deploy.yml` deploys it from `main` once the repository has a
 `CLOUDFLARE_API_TOKEN` secret (B96–B98). A card in `projects/projects.yml` of
-`Babissimo/babissimo.github.io` links to it from babissimo.net's projects page. The repo is
-`Babissimo/strandbeest-sim` (private) until Al names it. Changed by Al.
+`Babissimo/babissimo.github.io` links to it from babissimo.net's projects page. The repo,
+`Babissimo/strandbeest-sim`, is public. Changed by Al.
 
 ### Q13 Devices: provisional
 Unknown. Target current Chrome, Edge, Safari and Firefox on laptops. Size the default GA settings so a
@@ -479,6 +479,7 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   `data-run-arena-distance`). A beest the arena cannot stand up gets the arena's reason, and a new
   run ends a check under way. The physics engine loads once for this and the Arena tab
   (`app/physics.py`); if it cannot load, the check says so plainly and the other checks stand.
+  Confirmed by Al, including the cross for a beest that stays up without walking forwards.
 - **B95 Upright** is labelled "Upright (quick check)", and the fitness panel and the code route's
   help say it is stricter than the arena. Its weight stays 0 by default.
 - **B96 Hosting.** `deploy/wrangler.jsonc` serves `site/` from a Worker with no script, named
