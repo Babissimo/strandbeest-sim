@@ -16,6 +16,8 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["site"]
 testpaths = ["tests"]
+# Test files in tests/ and tests/e2e/ may share a name (test_leg.py in both).
+addopts = ["--import-mode=importlib"]
 markers = [
     "e2e: drives the page in Chromium; needs scripts/vendor.py run first",
     "page_errors_expected: an e2e test whose page may log errors without failing it",

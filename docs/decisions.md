@@ -213,13 +213,79 @@ Append one line per call that a reviewer could disagree with: `B<n> <what was de
   next to the leg's, for "Beat Jansen by hand". "Reset to Jansen" leaves the tolerance alone.
 - **B24 Tolerance slider** bounds are `TOLERANCE_BOUNDS = (0.5, 4.0)` in `app/leg_mode.py`.
 
+- **B25 Evaluations** are fitness calls. The GA and random search score every beest each generation,
+  elites included as in the slides' loop; hill climbing scores only the child. Under per-generation
+  normalisation, hill climbing's parent and random search's best so far are scored again beside the
+  newcomers, since scores compare only within one normalisation.
+- **B26 Budget.** A set `budget` replaces `generations` and is never exceeded (the last generation
+  is cut short). `generations` counts generation 0, so 40 generations give 40 reports and 1,200
+  evaluations. `BUDGET = 1500` is the default for comparing searches (Q17).
+- **B27 Jammed legs** take no part in a generation's lowest and highest, and normalise to 0 in every
+  mode (a jammed leg's 0 mm bob would otherwise look perfect once flipped). All-equal values, or a
+  single working leg, give 0.5.
+- **B28 `leg.normalised`** holds values before flipping (Jansen's own leg gives 1 under Jansen
+  normalisation); the settings fitness applies the flip, so a student writes
+  `1 - leg.normalised[...]`.
+- **B29 Weights** must be 0 or more (flip an ingredient instead); all weights 0 scores 0.
+- **B30 Limits.** Reversed limits are swapped; equal limits give 0 below, 0.5 at and 1 above.
+- **B31 Jansen's reference leg** uses jam margin 0 whatever the run's margin, since a margin above
+  1.43 mm jams Jansen's own leg.
+- **B32 Gene mask.** Lengths left out of the mask hold Jansen's value in every beest (generation 0
+  draws only the masked-in lengths) and are restored from the first parent after crossover and
+  mutation.
+- **B33 Layouts.** Every beest starts on the standard layout and only mutation changes it, so random
+  search never varies layouts; a child takes a random parent's layout. With probability `RATE` the
+  number of pairs moves by ±1 (throws evenly spaced again); otherwise each throw after the first
+  moves by `gauss(0, 15)` degrees with probability `RATE`, as a length does (`PHASE_SIZE`).
+- **B34 Tournament** entrants are drawn with replacement, so populations under 3 work; ties go to
+  the first drawn. The GA refuses `elite >= pop`.
+- **B35 Hill climbing** keeps the child on a tie, so a jammed start can drift.
+- **B36 The report's best** is the beest the search keeps (the GA's best this generation, hill
+  climbing's parent, random search's best so far); it also carries `best_jams` and `best_fits` for
+  the winner checks.
+- **B37 Scores** must be finite real numbers; True and False are refused as slips
+  (`return leg.jams`). `mutate` must return 13 finite numbers; the engine does not clamp them, and
+  `fits` shows when they break the stick bounds.
+- **B38 Student code** runs as its own module, "student", compiled as `<editor>`, with nothing
+  injected: `SOURCE` imports `random` and `clamp` itself. `fitness` gets copies, so it cannot change
+  a cached beest.
+- **B39 Caching.** `leg_from` results are cached for one generation only (a traced leg is about
+  200 KB).
+- **B40 Test import mode.** pytest imports test files in importlib mode (`addopts` in
+  `pyproject.toml`), since the plan puts a `test_leg.py` in both `tests/` and `tests/e2e/` and the
+  default mode cannot collect two test files with one name.
+
 ## Questions for Al
 
 Append questions here as they arise, most important first, each with what it blocks and the
 provisional answer the build went ahead with.
+
+- **Default fitness and step height.** The default fitness (S3: distance 1, step height 0.5, Jansen
+  normalisation) rewards step height without limit. Evolved winners lift their feet 160–390 mm, bob
+  14–98 mm and "walk" 450–1,600 mm a turn on a 77 mm crank (Jansen: 27 mm, 0.09 mm, 170 mm, crank
+  18 mm); the code route's starting fitness does the same. Options: a flatness weight by default, a
+  cap on step height, or the tipping check (Task 9) in the default. Blocks nothing, but decides what
+  a default run evolves. Built on S3 as written.
+- **Hill climbing from a jammed start.** A random start jams 81% of the time, and on 2 of 10 seeds
+  (the default seed 1 among them) hill climbing is still at 0 after 1,500 evaluations. Option: start
+  from the first random beest that turns fully (checking costs no fitness call). Blocks nothing, but
+  makes the Wednesday comparison lopsided. Built on pure hill climbing.
+- **Fixed limits below Jansen.** Jansen is above the 95th percentile on stride (66 against 33 mm)
+  and time down, and below the 5th on bob, so under the limits normalisation anything as good as
+  Jansen clips to 1. Distance spans −358 to 174 mm because 55% of random working legs walk the wrong
+  way. Blocks nothing. Built on Q5 as written.
+- **Flatness under Jansen normalisation.** Flatness divides by Jansen's 0.093 mm bob, so any
+  flatness weight swamps the other ingredients (a 5 mm bob scores −53). Blocks nothing. Built on Q18
+  as written.
+- **Wrong-way walkers.** With signed distance (B6) and jams scoring 0, a wrong-way walker scores
+  below a jammed leg under Jansen normalisation. Blocks nothing. Built on B6 and S3 as they stand.
 
 ## Slide edits for Al
 
 Append any place where the simulator and the slides now differ.
 
 - "Scaling" on the slides is called normalisation in the simulator (Q8).
+- The student code imports `clamp` from `beest.ga`, where the slides' code may assume it is already
+  defined (B38).
+- A `fitness` that returns True or False is refused with a message (B37).
+- Hill climbing keeps the child on a tie (B35).
